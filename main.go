@@ -48,32 +48,31 @@ const (
 )
 
 // Distance is in millimeters. The sign connotes direction.
-func move(s *softStepper.Stepper, dist int) {
-	if math.Abs(float64(dist)) > float64(maxDistance) {
+func move(s *softStepper.Stepper, dist float64) {
+	if math.Abs(dist) > float64(maxDistance) {
 		panic("Requested distance exceeds safe travel limits.")
 	}
 
 	numSteps := int(math.Floor(math.Abs((float64(dist))/screwLead) * stepsPerRev))
 
 	if dist < 0 {
-		s.StepForwardMulti(-numSteps)
+		s.StepForwardMulti(numSteps)
 	} else if dist > 0 {
 		s.StepBackwardMulti(numSteps)
 	}
 }
 
 // Move with a trapezoidal acceleration profile
-func moveTrapezoidal(s *softStepper.Stepper, dist int) {
-	if math.Abs(float64(dist)) > float64(maxDistance) {
+func moveTrapezoidal(s *softStepper.Stepper, dist float64) {
+	if math.Abs(dist) > float64(maxDistance) {
 		panic("Requested distance exceeds safe travel limits.")
 	}
 
-	averageDelay := float64(trapMaximumDelay + trapMinimumDelay) / 2.0
+	averageDelay := float64(trapMaximumDelay+trapMinimumDelay) / 2.0
 	numDelayDivisions := int(math.Floor(trapAccelPeriod / averageDelay))
-	delayIncrement := float64(trapMaximumDelay - trapMinimumDelay) / float64(numDelayDivisions)
+	delayIncrement := float64(trapMaximumDelay-trapMinimumDelay) / float64(numDelayDivisions)
 
 	fmt.Println(averageDelay, numDelayDivisions, delayIncrement)
-
 
 	// Accelerate
 	stepCountAcc := 0
@@ -92,7 +91,7 @@ func moveTrapezoidal(s *softStepper.Stepper, dist int) {
 
 	// Constant speed
 
-	numStepsConstantSpeed := int(math.Floor(math.Abs((float64(dist))/screwLead) * stepsPerRev)) - 2 * stepCountAcc
+	numStepsConstantSpeed := int(math.Floor(math.Abs((float64(dist))/screwLead)*stepsPerRev)) - 2*stepCountAcc
 
 	// FIXME: Enforce that the acceleration and deceleration segments do not cause the carriage to travel too far!
 	if numStepsConstantSpeed < 0 {
@@ -140,19 +139,18 @@ func moveTrapezoidal(s *softStepper.Stepper, dist int) {
 //	Agitation timer
 
 func main() {
-	stepper1 := softStepper.InitStepper(18, 23, 24, 25, 8, time.Microsecond * stepperSpeed)
+	stepper1 := softStepper.InitStepper(18, 23, 24, 25, 8, time.Microsecond*stepperSpeed)
 	defer stepper1.ReleaseStepper()
 
 	stepper1.EnableHold()
 
-
 	for {
-		moveTrapezoidal(stepper1, 10)
-		moveTrapezoidal(stepper1, -10)
-/*
-		move(stepper1, -10)
-		move(stepper1, 10)
-*/
+		moveTrapezoidal(stepper1, 10.105)
+		moveTrapezoidal(stepper1, -10.105)
+		/*
+			move(stepper1, -0.5)
+			move(stepper1, 0.5)
+		*/
 	}
 
 }
