@@ -34,25 +34,25 @@ import (
 const (
 	stepperSpeed = 5.0
 	// The plater has a 500mm 4-start leadscrew with a 2mm pitch and 8mm lead.
-	screwLead = 8.0
+	screwLead   = 8.0
 	stepsPerRev = 200.0
 	// The maximum acceptable distance for a function to accept. This is a sanity check value.
 	maxDistance = 500.0
 )
 
 // Distance is in millimeters. The sign connotes direction.
-func move(dist int, s *softStepper.Stepper)  {
+func move(s *softStepper.Stepper, dist int) {
 	fmt.Println(math.Abs(float64(dist)))
 	fmt.Println(float64(maxDistance))
-	if (math.Abs(float64(dist)) > float64(maxDistance)) {
+	if math.Abs(float64(dist)) > float64(maxDistance) {
 		panic("Requested distance exceeds safe travel limits.")
 	}
 
-	numSteps := int(math.Floor(math.Abs((float64(dist)) / screwLead) * stepsPerRev))
+	numSteps := int(math.Floor(math.Abs((float64(dist))/screwLead) * stepsPerRev))
 
-	if (dist < 0) {
+	if dist < 0 {
 		s.StepForwardMulti(numSteps)
-	} else if (dist > 0) {
+	} else if dist > 0 {
 		s.StepBackwardMulti(numSteps)
 	}
 }
@@ -66,15 +66,19 @@ func move(dist int, s *softStepper.Stepper)  {
 // 	Leadscrew lead and/or pitch
 // 	Steps per revolution
 // 	Agitation distance
-//	Agitation timer	
+//	Agitation timer
 
 func main() {
-	stepper1 := softStepper.InitStepper(18, 23, 24, 25, 8, time.Microsecond * 5000)
+	stepper1 := softStepper.InitStepper(18, 23, 24, 25, 8, time.Microsecond*1000)
+	defer stepper1.ReleaseStepper()
+
 	stepper1.EnableHold()
 
+	move(stepper1, 5)
+
 	for {
-		move(-50, stepper1)
-		move(50, stepper1)
+		move(stepper1, -10)
+		move(stepper1, 10)
 	}
 
 }
@@ -86,4 +90,3 @@ func home() {
 func agitate() {
 
 }
-
