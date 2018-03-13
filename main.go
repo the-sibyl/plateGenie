@@ -28,12 +28,14 @@ import (
 	"math"
 	"time"
 
+	"github.com/the-sibyl/goLCD20x4"
 	"github.com/the-sibyl/softStepper"
+	"github.com/the-sibyl/sysfsGPIO"
 )
 
 const (
 	// Stepper speed in microseconds
-	stepperSpeed = 1000
+	stepperSpeed = 2000
 	// Acceleration/deceleration window in microseconds for trapezoidal acceleration profile
 	trapAccelPeriod = 50000
 	// Minimum delay for the trapezoidal profile: this may be zero (fastest)
@@ -139,14 +141,66 @@ func moveTrapezoidal(s *softStepper.Stepper, dist float64) {
 //	Agitation timer
 
 func main() {
+	// Set up the display
+	lcd := goLCD20x4.Open(2, 3, 4, 17, 27, 22, 10, 9, 11, 0, 5)
+	defer lcd.Close()
+
+	lcd.FunctionSet(1, 1, 0)
+	lcd.DisplayOnOffControl(1, 0, 0)
+	lcd.EntryModeSet(1, 0)
+
+	lcd.ClearDisplay()
+
+	lcd.WriteLine("Welcome to", 1)
+	lcd.WriteLine("PLATE GENIE", 2)
+
+	// GPIO 6, 13, 19, 26 for membrane keypad
+	gpio6, _ := sysfsGPIO.InitPin(6, "in")
+	defer gpio6.ReleasePin()
+	gpio6.SetTriggerEdge("rising")
+	gpio6.AddPinInterrupt()
+
+	gpio13, _ := sysfsGPIO.InitPin(13, "in")
+	defer gpio13.ReleasePin()
+	gpio13.SetTriggerEdge("rising")
+	gpio13.AddPinInterrupt()
+
+	gpio19, _ := sysfsGPIO.InitPin(19, "in")
+	defer gpio19.ReleasePin()
+	gpio19.SetTriggerEdge("rising")
+	gpio19.AddPinInterrupt()
+
+	gpio26, _ := sysfsGPIO.InitPin(26, "in")
+	defer gpio26.ReleasePin()
+	gpio26.SetTriggerEdge("rising")
+	gpio26.AddPinInterrupt()
+
+	go func() {
+		for {
+			select {
+				case s := <-sysfsGPIO.GetInterruptStream():
+					switch(s.IOPin.GPIONum) {
+						case 19:
+							lcd.WriteLine("Button 1 pressed last", 4)
+						case 26:
+							lcd.WriteLine("Button 2 pressed last", 4)
+						case 6:
+							lcd.WriteLine("Button 3 pressed last", 4)
+						case 13:
+							lcd.WriteLine("Button 4 pressed last", 4)
+					}
+			}
+		}
+	} ()
+
 	stepper1 := softStepper.InitStepper(18, 23, 24, 25, 8, time.Microsecond*stepperSpeed)
 	defer stepper1.ReleaseStepper()
 
 	stepper1.EnableHold()
 
 	for {
-		moveTrapezoidal(stepper1, 10.105)
-		moveTrapezoidal(stepper1, -10.105)
+		moveTrapezoidal(stepper1, 60.105)
+		moveTrapezoidal(stepper1, -60.105)
 		/*
 			move(stepper1, -0.5)
 			move(stepper1, 0.5)
