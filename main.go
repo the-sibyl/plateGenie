@@ -157,10 +157,11 @@ func main() {
 	lcd.WriteLine("PLATE GENIE", 2)
 
 	m := menu.CreateMenu(lcd)
-//	m.AddMenuItem("       Speed        ", "    (% Max Speed)   ", "100", "   INC ", " DEC   ")
-//	m.AddMenuItem("       Travel       ", "  (% Max Distance)  ", "10", "   INC ", " DEC   ")
+	m.AddMenuItem("Home Both", "", "", "   GO  ", "  GO   ")
+	m.AddMenuItem("Home Single", "", "", " Left  ", " Right ")
 	m.AddMenuItem("Speed", "(% Max Speed)", "100%", "   INC ", " DEC   ")
 	m.AddMenuItem("Travel", "(% Max Distance)", "100%", "   INC ", " DEC   ")
+/*
 	go func() {
 		for {
 		m.Next()
@@ -168,6 +169,7 @@ func main() {
 		}
 
 	} ()
+*/
 
 	// GPIO 6, 13, 19, 26 for membrane keypad
 	gpio6, _ := sysfsGPIO.InitPin(6, "in")
@@ -190,25 +192,32 @@ func main() {
 	gpio26.SetTriggerEdge("rising")
 	gpio26.AddPinInterrupt()
 
-/*
+	// A trigger event will happen once everything is set up but before the user has actually pressed a button
+	<-sysfsGPIO.GetInterruptStream()
+
 	go func() {
 		for {
 			select {
 				case s := <-sysfsGPIO.GetInterruptStream():
 					switch(s.IOPin.GPIONum) {
+						// Button 1
 						case 19:
-							lcd.WriteLine("Button 1 pressed last", 4)
+							m.Prev()
+//							lcd.WriteLine("Button 1 pressed last", 4)
+						// Button 2
 						case 26:
-							lcd.WriteLine("Button 2 pressed last", 4)
+//							lcd.WriteLine("Button 2 pressed last", 4)
+						// Button 3
 						case 6:
-							lcd.WriteLine("Button 3 pressed last", 4)
+//							lcd.WriteLine("Button 3 pressed last", 4)
+						// Button 4
 						case 13:
-							lcd.WriteLine("Button 4 pressed last", 4)
+//							lcd.WriteLine("Button 4 pressed last", 4)
+							m.Next()
 					}
 			}
 		}
 	} ()
-*/
 
 	stepper1 := softStepper.InitStepper(18, 23, 24, 25, 8, time.Microsecond*stepperSpeed)
 	defer stepper1.ReleaseStepper()
