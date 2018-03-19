@@ -28,6 +28,8 @@ import (
 	"math"
 	"time"
 
+	"./menu"
+
 	"github.com/the-sibyl/goLCD20x4"
 	"github.com/the-sibyl/softStepper"
 	"github.com/the-sibyl/sysfsGPIO"
@@ -154,6 +156,19 @@ func main() {
 	lcd.WriteLine("Welcome to", 1)
 	lcd.WriteLine("PLATE GENIE", 2)
 
+	m := menu.CreateMenu(lcd)
+	m.AddMenuItem("Speed", "(% Max Speed)", "9000", "qwertyuiop", "fasdfasdfewarf")
+	m.AddMenuItem("Accel", "(% Max Accel)", "100", "qp", "fgsfds")
+	m.AddMenuItem("Other!", "", "0", "INC", "DEC")
+
+	go func() {
+		for {
+		m.Next()
+		time.Sleep(time.Second * 1)
+		}
+
+	} ()
+
 	// GPIO 6, 13, 19, 26 for membrane keypad
 	gpio6, _ := sysfsGPIO.InitPin(6, "in")
 	defer gpio6.ReleasePin()
@@ -175,6 +190,7 @@ func main() {
 	gpio26.SetTriggerEdge("rising")
 	gpio26.AddPinInterrupt()
 
+/*
 	go func() {
 		for {
 			select {
@@ -192,6 +208,7 @@ func main() {
 			}
 		}
 	} ()
+*/
 
 	stepper1 := softStepper.InitStepper(18, 23, 24, 25, 8, time.Microsecond*stepperSpeed)
 	defer stepper1.ReleaseStepper()
