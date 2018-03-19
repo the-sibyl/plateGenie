@@ -2,6 +2,7 @@ package menu
 
 import (
 	"fmt"
+	"strings"
 	"github.com/the-sibyl/goLCD20x4"
 )
 type Menu struct {
@@ -29,9 +30,9 @@ func (m *Menu) Next() {
 }
 
 func (m *Menu) Repaint() {
-	m.lcd.WriteLine(m.currentMenuItem.Name, 1)
-	m.lcd.WriteLine(m.currentMenuItem.Units, 2)
-	m.lcd.WriteLine(m.currentMenuItem.Values, 3)
+	m.lcd.WriteLine(FormatStringCentered(m.currentMenuItem.Name), 1)
+	m.lcd.WriteLine(FormatStringCentered(m.currentMenuItem.Units), 2)
+	m.lcd.WriteLine(FormatStringCentered(m.currentMenuItem.Values), 3)
 	m.lcd.WriteLine(m.currentMenuItem.Adjustments, 4)
 }
 
@@ -96,8 +97,26 @@ func (m *Menu) AddMenuItem(name string, units string, values string, adj1 string
 	return &mi
 }
 
+// Helper for the last line which has the adjustment text and previous and next screen arrows
 func (mi *MenuItem) FormatAdjustmentsString() {
 	sc := goLCD20x4.GetSpecialCharacters()
 
 	mi.Adjustments = sc.LeftArrow + " " + mi.adj1 + "  " + mi.adj2 + " " + sc.RightArrow
 }
+
+// Center a string for a 20-character line
+func FormatStringCentered(text string) string {
+	var formattedString string
+
+	if len(text) > 19 {
+		formattedString = text[0:21]
+	} else {
+		numEmptyChars := 20 - len(text)
+		leftPadding := strings.Repeat(" ", numEmptyChars / 2)
+		rightPadding := strings.Repeat(" ", numEmptyChars / 2 + numEmptyChars % 2)
+		formattedString = leftPadding + text + rightPadding
+	}
+
+	return formattedString
+}
+

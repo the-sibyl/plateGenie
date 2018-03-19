@@ -157,10 +157,10 @@ func main() {
 	lcd.WriteLine("PLATE GENIE", 2)
 
 	m := menu.CreateMenu(lcd)
-	m.AddMenuItem("Speed", "(% Max Speed)", "9000", "qwertyuiop", "fasdfasdfewarf")
-	m.AddMenuItem("Accel", "(% Max Accel)", "100", "qp", "fgsfds")
-	m.AddMenuItem("Other!", "", "0", "INC", "DEC")
-
+//	m.AddMenuItem("       Speed        ", "    (% Max Speed)   ", "100", "   INC ", " DEC   ")
+//	m.AddMenuItem("       Travel       ", "  (% Max Distance)  ", "10", "   INC ", " DEC   ")
+	m.AddMenuItem("Speed", "(% Max Speed)", "100%", "   INC ", " DEC   ")
+	m.AddMenuItem("Travel", "(% Max Distance)", "100%", "   INC ", " DEC   ")
 	go func() {
 		for {
 		m.Next()
