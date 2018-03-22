@@ -159,6 +159,7 @@ func main() {
 	m := menu.CreateMenu(lcd)
 	m.AddMenuItem("Home Both", "", "", "   GO  ", "  GO   ")
 	m.AddMenuItem("Home Single", "", "", " Left  ", " Right ")
+	m.AddMenuItem("Move to Center", "", "", "   GO  ", "  GO   ")
 	m.AddMenuItem("Speed", "(% Max Speed)", "100%", "   INC ", " DEC   ")
 	m.AddMenuItem("Travel", "(% Max Distance)", "100%", "   INC ", " DEC   ")
 /*
@@ -192,7 +193,33 @@ func main() {
 	gpio26.SetTriggerEdge("rising")
 	gpio26.AddPinInterrupt()
 
+	// GPIO 21 for left limit switch. GPIO 16 for right limit switch.
+	// Pull-ups are defined in the device tree overlay.
+	gpio21, _ := sysfsGPIO.InitPin(21, "in")
+	defer gpio21.ReleasePin()
+	gpio21.SetTriggerEdge("both")
+	gpio21.AddPinInterrupt()
+
+	gpio16, _ := sysfsGPIO.InitPin(16, "in")
+	defer gpio16.ReleasePin()
+	gpio16.SetTriggerEdge("both")
+	gpio16.AddPinInterrupt()
+
+	// GPIO 18 for the green button and GPIO 23 for the red button
+	gpio18, _ := sysfsGPIO.InitPin(18, "in")
+	defer gpio18.ReleasePin()
+	gpio18.SetTriggerEdge("rising")
+	gpio18.AddPinInterrupt()
+
+	gpio23, _ := sysfsGPIO.InitPin(23, "in")
+	defer gpio23.ReleasePin()
+	gpio23.SetTriggerEdge("rising")
+	gpio23.AddPinInterrupt()
+
+// TODO: Using an obscenely long amount of time delay doesn't fix this problem. Figure out a deterministic solution
+// to discard the first few interrupts.
 	// A trigger event will happen once everything is set up but before the user has actually pressed a button
+	time.Sleep(time.Millisecond * 2000)
 	<-sysfsGPIO.GetInterruptStream()
 
 	go func() {
@@ -214,6 +241,14 @@ func main() {
 						case 13:
 //							lcd.WriteLine("Button 4 pressed last", 4)
 							m.Next()
+						case 21:
+							fmt.Println("Left limit hit")
+						case 16:
+							fmt.Println("Right limit hit")
+						case 18:
+							fmt.Println("Green button hit")
+						case 23:
+							fmt.Println("Red button hit")
 					}
 			}
 		}
@@ -225,13 +260,17 @@ func main() {
 	stepper1.EnableHold()
 
 	for {
-		moveTrapezoidal(stepper1, 60.105)
-		moveTrapezoidal(stepper1, -60.105)
-		/*
-			move(stepper1, -0.5)
-			move(stepper1, 0.5)
-		*/
+		time.Sleep(time.Second)
 	}
+
+//	for {
+//		moveTrapezoidal(stepper1, 60.105)
+//		moveTrapezoidal(stepper1, -60.105)
+//		/*
+//			move(stepper1, -0.5)
+//			move(stepper1, 0.5)
+//		*/
+//	}
 
 }
 
