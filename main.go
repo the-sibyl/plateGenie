@@ -219,7 +219,7 @@ func main() {
 		}
 	} ()
 
-	stepper1 := softStepper.InitStepper(18, 23, 24, 25, 8, time.Microsecond*stepperSpeed)
+	stepper1 := softStepper.InitStepperTwoEnaPins(24, 12, 25, 8, 7, 1, time.Microsecond*stepperSpeed)
 	defer stepper1.ReleaseStepper()
 
 	stepper1.EnableHold()
