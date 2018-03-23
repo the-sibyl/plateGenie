@@ -1,8 +1,9 @@
-package menu
+package plateGenie
 
 import (
 	"github.com/the-sibyl/goLCD20x4"
 )
+
 type Menu struct {
 	lcd *goLCD20x4.LCD20x4
 	firstMenuItem *MenuItem

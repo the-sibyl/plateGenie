@@ -25,9 +25,8 @@ package plateGenie
 
 import (
 	"errors"
+	"fmt"
 	"time"
-
-	"./menu"
 
 	"github.com/the-sibyl/goLCD20x4"
 	"github.com/the-sibyl/softStepper"
@@ -53,6 +52,11 @@ const (
 type PlateGenie struct {
 	lcd *goLCD20x4.LCD20x4
 
+	gpioMembrane1 *sysfsGPIO.IOPin
+	gpioMembrane2 *sysfsGPIO.IOPin
+	gpioMembrane3 *sysfsGPIO.IOPin
+	gpioMembrane4 *sysfsGPIO.IOPin
+
 	gpioRedButton *sysfsGPIO.IOPin
 	gpioGreenButton *sysfsGPIO.IOPin
 
@@ -62,6 +66,137 @@ type PlateGenie struct {
 	stepper *softStepper.Stepper
 }
 
+// List of items to pass:
+//
+// LCD
+// Membrane 1, 2, 3, 4
+// Red button, green button
+// Left limit, right limit
+func Initialize(lcd *goLCD20x4.LCD20x4, gm1 *sysfsGPIO.IOPin, gm2 *sysfsGPIO.IOPin, gm3 *sysfsGPIO.IOPin,
+	gm4 *sysfsGPIO.IOPin, grb *sysfsGPIO.IOPin, ggb *sysfsGPIO.IOPin, gll *sysfsGPIO.IOPin, grl *sysfsGPIO.IOPin,
+	stepper *softStepper.Stepper) PlateGenie {
+
+	var pg PlateGenie
+
+	// Set up the display
+	lcd.FunctionSet(1, 1, 0)
+	lcd.DisplayOnOffControl(1, 0, 0)
+	lcd.EntryModeSet(1, 0)
+
+	lcd.ClearDisplay()
+
+	lcd.WriteLine("Welcome to", 1)
+	lcd.WriteLine("PLATE GENIE", 2)
+
+	pg.lcd = lcd
+
+	m := CreateMenu(lcd)
+	m.AddMenuItem("Home Both", "", "", "   GO  ", "  GO   ")
+	m.AddMenuItem("Home Single", "", "", " Left  ", " Right ")
+	m.AddMenuItem("Move to Center", "", "", "   GO  ", "  GO   ")
+	m.AddMenuItem("Speed", "(% Max Speed)", "100%", "   INC ", " DEC   ")
+	m.AddMenuItem("Travel", "(% Max Distance)", "100%", "   INC ", " DEC   ")
+
+	// Set up the membrane keypad GPIO here. Presume that the caller provides an input pin.
+	gm1.SetTriggerEdge("rising")
+	gm1.AddPinInterrupt()
+	pg.gpioMembrane1 = gm1
+
+	gm2.SetTriggerEdge("rising")
+	gm2.AddPinInterrupt()
+	pg.gpioMembrane2 = gm2
+
+	gm3.SetTriggerEdge("rising")
+	gm3.AddPinInterrupt()
+	pg.gpioMembrane3 = gm3
+
+	gm4.SetTriggerEdge("rising")
+	gm4.AddPinInterrupt()
+	pg.gpioMembrane4 = gm4
+
+	// Red and green buttons
+	grb.SetTriggerEdge("rising")
+	grb.AddPinInterrupt()
+	pg.gpioRedButton = grb
+
+	ggb.SetTriggerEdge("rising")
+	ggb.AddPinInterrupt()
+	pg.gpioGreenButton = ggb
+
+	// Left and right limit switches. Presume that pull-ups are defined in the DTO.
+	gll.SetTriggerEdge("both")
+	gll.AddPinInterrupt()
+	pg.gpioLeftLimit = gll
+
+	grl.SetTriggerEdge("both")
+	grl.AddPinInterrupt()
+	pg.gpioRightLimit = grl
+
+// TODO: Using an obscenely long amount of time delay doesn't fix this problem. Figure out a deterministic solution
+// to discard the first few interrupts.
+	// A trigger event will happen once everything is set up but before the user has actually pressed a button
+	time.Sleep(time.Millisecond * 2000)
+	<-sysfsGPIO.GetInterruptStream()
+
+	go func() {
+		for {
+			select {
+				case s := <-sysfsGPIO.GetInterruptStream():
+					switch(s.IOPin.GPIONum) {
+						// Button 1
+						case pg.gpioMembrane1.GPIONum:
+							m.Prev()
+							lcd.WriteLine("Button 1 pressed last", 4)
+						// Button 2
+						case pg.gpioMembrane2.GPIONum:
+							lcd.WriteLine("Button 2 pressed last", 4)
+						// Button 3
+						case pg.gpioMembrane3.GPIONum:
+							lcd.WriteLine("Button 3 pressed last", 4)
+						// Button 4
+						case pg.gpioMembrane4.GPIONum:
+							lcd.WriteLine("Button 4 pressed last", 4)
+							m.Next()
+						case pg.gpioLeftLimit.GPIONum:
+							fmt.Println("Left limit hit")
+						case pg.gpioRightLimit.GPIONum:
+							fmt.Println("Right limit hit")
+						case pg.gpioGreenButton.GPIONum:
+							fmt.Println("Green button hit")
+						case pg.gpioRedButton.GPIONum:
+							fmt.Println("Red button hit")
+					}
+			}
+		}
+	} ()
+
+//TODO: put stepperSpeed back in its proper place
+const stepperSpeed = 1000
+	stepper1 := softStepper.InitStepperTwoEnaPins(24, 12, 25, 8, 7, 1, time.Microsecond*stepperSpeed)
+	defer stepper1.ReleaseStepper()
+
+	stepper1.EnableHold()
+
+	pg.stepper = stepper1
+
+	pg.homeBoth()
+
+	for {
+		time.Sleep(time.Second)
+	}
+
+//	for {
+//		moveTrapezoidal(stepper1, 60.105)
+//		moveTrapezoidal(stepper1, -60.105)
+//		/*
+//			move(stepper1, -0.5)
+//			move(stepper1, 0.5)
+//		*/
+//	}
+
+	return pg
+
+}
 // Maximum number of steps to be traversed for an axis move on a homing operation
 const maxHomingSteps = 100000
 const homingStepDelay = 1000
