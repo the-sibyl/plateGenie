@@ -6,7 +6,7 @@ import (
 )
 
 // Debounce interval in microseconds
-const debounceTime = 10000
+const debounceTime = 60000
 
 type Menu struct {
 	lcd *goLCD20x4.LCD20x4

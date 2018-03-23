@@ -66,11 +66,11 @@ func main() {
 	gpio16, _ := sysfsGPIO.InitPin(16, "in")
 	defer gpio16.ReleasePin()
 
-	// Placeholder -- TODO: come back and look at this
-	const stepperSpeed = 10000
+	// Set this to the minimum reasonable time (on the order of 1 ms) to give the most optionsa for speed
+	const stepperSpeed = 1500
 	stepper := softStepper.InitStepperTwoEnaPins(24, 12, 25, 8, 7, 1, time.Microsecond*stepperSpeed)
 
-	plateGenie.Initialize(lcd, gpio19, gpio26, gpio6, gpio13, gpio18, gpio23, gpio21, gpio16, stepper)
+	plateGenie.Initialize(lcd, gpio19, gpio26, gpio6, gpio13, gpio23, gpio18, gpio21, gpio16, stepper)
 
 	for {
 		time.Sleep(time.Second)
