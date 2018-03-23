@@ -80,6 +80,9 @@ type PlateGenie struct {
 
 	// Number of steps counted on the axis between the limit switches
 	homingStepCount int
+
+	// Menu busy flag
+	menuBusyFlag bool
 }
 
 // List of items to pass:
@@ -97,6 +100,7 @@ func Initialize(lcd *goLCD20x4.LCD20x4, gm1 *sysfsGPIO.IOPin, gm2 *sysfsGPIO.IOP
 	pg.eStopFlag = true
 	pg.motionFlag = false
 	pg.homedFlag = false
+	pg.menuBusyFlag = false
 
 	// Set up the display
 	lcd.FunctionSet(1, 1, 0)
@@ -232,11 +236,10 @@ func Initialize(lcd *goLCD20x4.LCD20x4, gm1 *sysfsGPIO.IOPin, gm2 *sysfsGPIO.IOP
 	grl.AddPinInterrupt()
 	pg.gpioRightLimit = grl
 
-// TODO: Using an obscenely long amount of time delay doesn't fix this problem. Figure out a deterministic solution
-// to discard the first few interrupts.
-	// A trigger event will happen once everything is set up but before the user has actually pressed a button
-//	time.Sleep(time.Millisecond * 2000)
-//	<-sysfsGPIO.GetInterruptStream()
+	// Expend the events created with AddPinInterrupt()
+	for k := 0; k < 8; k++ {
+		fmt.Println("Expending", k, <-sysfsGPIO.GetInterruptStream())
+	}
 
 	go func() {
 		for {
@@ -245,20 +248,41 @@ func Initialize(lcd *goLCD20x4.LCD20x4, gm1 *sysfsGPIO.IOPin, gm2 *sysfsGPIO.IOP
 					switch(s.IOPin.GPIONum) {
 						// Button 1
 						case pg.gpioMembrane1.GPIONum:
-							m.Button1Pressed()
-//							lcd.WriteLine("Button 1 pressed last", 4)
+							fmt.Println("Button 1 pressed")
+							if !pg.menuBusyFlag {
+								pg.menuBusyFlag = true
+								go func() {
+									m.Button1Pressed()
+									pg.menuBusyFlag = false
+								} ()
+							}
 						// Button 2
 						case pg.gpioMembrane2.GPIONum:
-							m.Button2Pressed()
-//							lcd.WriteLine("Button 2 pressed last", 4)
+							if !pg.menuBusyFlag {
+								pg.menuBusyFlag = true
+								go func() {
+									m.Button2Pressed()
+									pg.menuBusyFlag = false
+								} ()
+							}
 						// Button 3
 						case pg.gpioMembrane3.GPIONum:
-							m.Button3Pressed()
-//							lcd.WriteLine("Button 3 pressed last", 4)
+							if !pg.menuBusyFlag {
+								pg.menuBusyFlag = true
+								go func() {
+									m.Button3Pressed()
+									pg.menuBusyFlag = false
+								} ()
+							}
 						// Button 4
 						case pg.gpioMembrane4.GPIONum:
-							m.Button4Pressed()
-//							lcd.WriteLine("Button 4 pressed last", 4)
+							if !pg.menuBusyFlag {
+								pg.menuBusyFlag = true
+								go func() {
+									m.Button4Pressed()
+									pg.menuBusyFlag = false
+								} ()
+							}
 						case pg.gpioLeftLimit.GPIONum:
 							fmt.Println("Left limit hit")
 						case pg.gpioRightLimit.GPIONum:
