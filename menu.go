@@ -17,12 +17,20 @@ func CreateMenu(lcd *goLCD20x4.LCD20x4) (*Menu) {
 	return &m
 }
 
-func (m *Menu) Prev() {
+func (m *Menu) Button1Pressed() {
 	m.currentMenuItem = m.currentMenuItem.prev
 	m.Repaint()
 }
 
-func (m *Menu) Next() {
+func (m *Menu) Button2Pressed() {
+	m.currentMenuItem.action <- 1
+}
+
+func (m *Menu) Button3Pressed() {
+	m.currentMenuItem.action <- 2
+}
+
+func (m *Menu) Button4Pressed() {
 	m.currentMenuItem = m.currentMenuItem.next
 	m.Repaint()
 }
@@ -41,6 +49,8 @@ type MenuItem struct {
 	Adjustments string
 	adj1 string
 	adj2 string
+	// A channel correpsonding to the soft key pressed (1 or 2)
+	action chan int
 	prev *MenuItem
 	next *MenuItem
 }
@@ -88,7 +98,16 @@ func (m *Menu) AddMenuItem(name string, units string, values string, adj1 string
 	m.firstMenuItem.prev = &mi
 	m.lastMenuItem.next = m.firstMenuItem
 
+	mi.action = make(chan int)
+
 	return &mi
+}
+
+// Output channels for the two user-defined softkey actions. Return a read-only channel.
+func (mi *MenuItem) AddAction() (action <-chan int) {
+	action = make(<-chan int)
+	action = mi.action
+	return action
 }
 
 // Helper for the last line which has the adjustment text and previous and next screen arrows

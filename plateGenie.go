@@ -47,6 +47,10 @@ const (
 	stepsPerRev = 200.0
 	// The maximum acceptable distance for a function to accept. This is a sanity check value.
 	maxDistance = 500.0
+	// Maximum number of steps to be traversed for an axis move on a homing operation
+	maxHomingSteps = 100000
+	homingStepDelay = 1000
+
 )
 
 type PlateGenie struct {
@@ -64,6 +68,18 @@ type PlateGenie struct {
 	gpioRightLimit *sysfsGPIO.IOPin
 
 	stepper *softStepper.Stepper
+
+	// Emergency stop, used as a motion inhibit flag
+	eStopFlag bool
+
+	// Motion in progress flag
+	motionFlag bool
+
+	// Axis homed flag
+	homedFlag bool
+
+	// Number of steps counted on the axis between the limit switches
+	homingStepCount int
 }
 
 // List of items to pass:
@@ -78,6 +94,10 @@ func Initialize(lcd *goLCD20x4.LCD20x4, gm1 *sysfsGPIO.IOPin, gm2 *sysfsGPIO.IOP
 
 	var pg PlateGenie
 
+	pg.eStopFlag = true
+	pg.motionFlag = false
+	pg.homedFlag = false
+
 	// Set up the display
 	lcd.FunctionSet(1, 1, 0)
 	lcd.DisplayOnOffControl(1, 0, 0)
@@ -91,11 +111,91 @@ func Initialize(lcd *goLCD20x4.LCD20x4, gm1 *sysfsGPIO.IOPin, gm2 *sysfsGPIO.IOP
 	pg.lcd = lcd
 
 	m := CreateMenu(lcd)
-	m.AddMenuItem("Home Both", "", "", "   GO  ", "  GO   ")
-	m.AddMenuItem("Home Single", "", "", " Left  ", " Right ")
-	m.AddMenuItem("Move to Center", "", "", "   GO  ", "  GO   ")
-	m.AddMenuItem("Speed", "(% Max Speed)", "100%", "   INC ", " DEC   ")
-	m.AddMenuItem("Travel", "(% Max Distance)", "100%", "   INC ", " DEC   ")
+
+	// ---------------
+	// FIRST MENU ITEM
+	// ---------------
+	mi1 := m.AddMenuItem("Home Both", "", "", "   GO  ", "  GO   ")
+	a1 := mi1.AddAction()
+	// Action handler
+	go func() {
+		for {
+			switch <-a1 {
+				case 1:
+					fmt.Println("Home both")
+				case 2:
+					fmt.Println("Home both")
+			}
+		}
+	} ()
+
+	// ----------------
+	// SECOND MENU ITEM
+	// ----------------
+	mi2 := m.AddMenuItem("Home Single", "", "", " Left  ", " Right ")
+	a2 := mi2.AddAction()
+	// Action handler
+	go func() {
+		for {
+			switch <-a2 {
+				case 1:
+					fmt.Println("Home left")
+				case 2:
+					fmt.Println("Home right")
+			}
+		}
+	} ()
+
+	// ---------------
+	// THIRD MENU ITEM
+	// ---------------
+	mi3 := m.AddMenuItem("Move to Center", "", "", "   GO  ", "  GO   ")
+	a3 := mi3.AddAction()
+	// Action handler
+	go func() {
+		for {
+			switch <-a3 {
+				case 1:
+					fmt.Println("Move to center")
+				case 2:
+					fmt.Println("Move to center")
+			}
+		}
+	} ()
+
+	// ----------------
+	// FOURTH MENU ITEM
+	// ----------------
+	mi4 := m.AddMenuItem("Speed", "(% Max Speed)", "100%", "   INC ", " DEC   ")
+	a4 := mi4.AddAction()
+	// Action handler
+	go func() {
+		for {
+			switch <-a4 {
+				case 1:
+					fmt.Println("Increase max speed")
+				case 2:
+					fmt.Println("Decrease max speed")
+			}
+		}
+	} ()
+
+	// ---------------
+	// FIFTH MENU ITEM
+	// ---------------
+	mi5 := m.AddMenuItem("Travel", "(% Max Distance)", "100%", "   INC ", " DEC   ")
+	a5 := mi5.AddAction()
+	// Action handler
+	go func() {
+		for {
+			switch <-a5 {
+				case 1:
+					fmt.Println("Increase travel distance")
+				case 2:
+					fmt.Println("Decrease travel distance")
+			}
+		}
+	} ()
 
 	// Set up the membrane keypad GPIO here. Presume that the caller provides an input pin.
 	gm1.SetTriggerEdge("rising")
@@ -135,8 +235,8 @@ func Initialize(lcd *goLCD20x4.LCD20x4, gm1 *sysfsGPIO.IOPin, gm2 *sysfsGPIO.IOP
 // TODO: Using an obscenely long amount of time delay doesn't fix this problem. Figure out a deterministic solution
 // to discard the first few interrupts.
 	// A trigger event will happen once everything is set up but before the user has actually pressed a button
-	time.Sleep(time.Millisecond * 2000)
-	<-sysfsGPIO.GetInterruptStream()
+//	time.Sleep(time.Millisecond * 2000)
+//	<-sysfsGPIO.GetInterruptStream()
 
 	go func() {
 		for {
@@ -145,63 +245,54 @@ func Initialize(lcd *goLCD20x4.LCD20x4, gm1 *sysfsGPIO.IOPin, gm2 *sysfsGPIO.IOP
 					switch(s.IOPin.GPIONum) {
 						// Button 1
 						case pg.gpioMembrane1.GPIONum:
-							m.Prev()
-							lcd.WriteLine("Button 1 pressed last", 4)
+							m.Button1Pressed()
+//							lcd.WriteLine("Button 1 pressed last", 4)
 						// Button 2
 						case pg.gpioMembrane2.GPIONum:
-							lcd.WriteLine("Button 2 pressed last", 4)
+							m.Button2Pressed()
+//							lcd.WriteLine("Button 2 pressed last", 4)
 						// Button 3
 						case pg.gpioMembrane3.GPIONum:
-							lcd.WriteLine("Button 3 pressed last", 4)
+							m.Button3Pressed()
+//							lcd.WriteLine("Button 3 pressed last", 4)
 						// Button 4
 						case pg.gpioMembrane4.GPIONum:
-							lcd.WriteLine("Button 4 pressed last", 4)
-							m.Next()
+							m.Button4Pressed()
+//							lcd.WriteLine("Button 4 pressed last", 4)
 						case pg.gpioLeftLimit.GPIONum:
 							fmt.Println("Left limit hit")
 						case pg.gpioRightLimit.GPIONum:
 							fmt.Println("Right limit hit")
 						case pg.gpioGreenButton.GPIONum:
+							pg.eStopFlag = false
+							pg.motionFlag = false
 							fmt.Println("Green button hit")
 						case pg.gpioRedButton.GPIONum:
+							pg.eStopFlag = true
+							pg.motionFlag = false
 							fmt.Println("Red button hit")
 					}
 			}
 		}
 	} ()
 
-//TODO: put stepperSpeed back in its proper place
-const stepperSpeed = 1000
-	stepper1 := softStepper.InitStepperTwoEnaPins(24, 12, 25, 8, 7, 1, time.Microsecond*stepperSpeed)
-	defer stepper1.ReleaseStepper()
 
-	stepper1.EnableHold()
+	pg.stepper = stepper
 
-	pg.stepper = stepper1
-
-	pg.homeBoth()
+//	pg.homeBoth()
 
 	for {
 		time.Sleep(time.Second)
 	}
 
-//	for {
-//		moveTrapezoidal(stepper1, 60.105)
-//		moveTrapezoidal(stepper1, -60.105)
-//		/*
-//			move(stepper1, -0.5)
-//			move(stepper1, 0.5)
-//		*/
-//	}
-
 	return pg
 
 }
-// Maximum number of steps to be traversed for an axis move on a homing operation
-const maxHomingSteps = 100000
-const homingStepDelay = 1000
-
 func (pg *PlateGenie) homeBoth() error {
+	if pg.motionFlag {
+		return errors.New("Axis is already in motion")
+	}
+
 	leftStatus, _ := pg.gpioLeftLimit.Read()
 	rightStatus, _ := pg.gpioRightLimit.Read()
 
@@ -210,6 +301,9 @@ func (pg *PlateGenie) homeBoth() error {
 
 	if leftStatus == 0 {
 		for k := 0; k < maxHomingSteps; k++ {
+			if pg.eStopFlag {
+				return errors.New("Motion stopped because of E-Stop")
+			}
 			pg.stepper.StepBackward()
 			time.Sleep(time.Microsecond * homingStepDelay)
 			leftStatus, _ = pg.gpioLeftLimit.Read()
@@ -221,6 +315,9 @@ func (pg *PlateGenie) homeBoth() error {
 			}
 		}
 		for k := 0; k < maxHomingSteps; k++ {
+			if pg.eStopFlag {
+				return errors.New("Motion stopped because of E-Stop")
+			}
 			pg.stepper.StepForward()
 			time.Sleep(time.Microsecond * homingStepDelay)
 			leftStatus, _ = pg.gpioLeftLimit.Read()
@@ -236,6 +333,9 @@ func (pg *PlateGenie) homeBoth() error {
 			}
 		}
 		for k := 0; k < homingStepCount / 2; k++ {
+			if pg.eStopFlag {
+				return errors.New("Motion stopped because of E-Stop")
+			}
 			pg.stepper.StepBackward()
 			time.Sleep(time.Microsecond * homingStepDelay)
 			leftStatus, _ = pg.gpioLeftLimit.Read()
@@ -247,6 +347,9 @@ func (pg *PlateGenie) homeBoth() error {
 			}
 		}
 	}
+
+	pg.homingStepCount = homingStepCount
+	pg.homedFlag = true
 
 	return nil
 }
