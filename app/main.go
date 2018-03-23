@@ -25,7 +25,6 @@ package main
 
 import (
 	"fmt"
-	"math"
 	"time"
 
 	"./menu"
@@ -35,114 +34,9 @@ import (
 	"github.com/the-sibyl/sysfsGPIO"
 )
 
-const (
-	// Stepper speed in microseconds
-	stepperSpeed = 2000
-	// Acceleration/deceleration window in microseconds for trapezoidal acceleration profile
-	trapAccelPeriod = 50000
-	// Minimum delay for the trapezoidal profile: this may be zero (fastest)
-	trapMinimumDelay = 50
-	// Maximum delay for the trapezoidal profile: this must not exceed the acceleration period
-	trapMaximumDelay = 1000
-	// The plater has a 500mm 4-start leadscrew with a 2mm pitch and 8mm lead.
-	screwLead   = 8.0
-	stepsPerRev = 200.0
-	// The maximum acceptable distance for a function to accept. This is a sanity check value.
-	maxDistance = 500.0
-)
-
-// Distance is in millimeters. The sign connotes direction.
-func move(s *softStepper.Stepper, dist float64) {
-	if math.Abs(dist) > float64(maxDistance) {
-		panic("Requested distance exceeds safe travel limits.")
-	}
-
-	numSteps := int(math.Floor(math.Abs((float64(dist))/screwLead) * stepsPerRev))
-
-	if dist < 0 {
-		s.StepForwardMulti(numSteps)
-	} else if dist > 0 {
-		s.StepBackwardMulti(numSteps)
-	}
-}
-
-// Move with a trapezoidal acceleration profile
-func moveTrapezoidal(s *softStepper.Stepper, dist float64) {
-	if math.Abs(dist) > float64(maxDistance) {
-		panic("Requested distance exceeds safe travel limits.")
-	}
-
-	averageDelay := float64(trapMaximumDelay+trapMinimumDelay) / 2.0
-	numDelayDivisions := int(math.Floor(trapAccelPeriod / averageDelay))
-	delayIncrement := float64(trapMaximumDelay-trapMinimumDelay) / float64(numDelayDivisions)
-
-	fmt.Println(averageDelay, numDelayDivisions, delayIncrement)
-
-	// Accelerate
-	stepCountAcc := 0
-	for delay := float64(trapMaximumDelay); delay >= float64(trapMinimumDelay); delay = delay - delayIncrement {
-		if stepCountAcc > numDelayDivisions {
-			panic("Trapezoidal acceleration error")
-		}
-		if dist < 0 {
-			s.StepForward()
-		} else if dist > 0 {
-			s.StepBackward()
-		}
-		time.Sleep(time.Microsecond * time.Duration(delay))
-		stepCountAcc++
-	}
-
-	// Constant speed
-
-	numStepsConstantSpeed := int(math.Floor(math.Abs((float64(dist))/screwLead)*stepsPerRev)) - 2*stepCountAcc
-
-	// FIXME: Enforce that the acceleration and deceleration segments do not cause the carriage to travel too far!
-	if numStepsConstantSpeed < 0 {
-		panic("Acceleration/deceleration profile is too long")
-	}
-
-	if dist < 0 {
-		s.StepForwardMulti(numStepsConstantSpeed)
-	} else if dist > 0 {
-		s.StepBackwardMulti(numStepsConstantSpeed)
-	}
-
-	// Decelerate
-	stepCountDec := 0
-	for delay := float64(trapMinimumDelay); delay <= float64(trapMaximumDelay); delay = delay + delayIncrement {
-		if stepCountDec > numDelayDivisions {
-			panic("Trapezoidal acceleration error")
-		}
-		if dist < 0 {
-			s.StepForward()
-		} else if dist > 0 {
-			s.StepBackward()
-		}
-		time.Sleep(time.Microsecond * time.Duration(delay))
-		stepCountDec++
-	}
-	fmt.Println("Accel Steps:", stepCountAcc)
-	fmt.Println("Decel Steps:", stepCountDec)
-	if stepCountAcc != stepCountDec {
-		panic(`Mismatch between acceleration and deceleration steps. 
-			This would cause the carriage to drift in one direction.`)
-	}
-
-}
-
-// Add a homing function with a timeout
-
-// Count the number of steps from left side to right side
-
-// Add parameters for the following
-// 	Stepper speed
-// 	Leadscrew lead and/or pitch
-// 	Steps per revolution
-// 	Agitation distance
-//	Agitation timer
-
 func main() {
+	var pg PlateGenie
+
 	// Set up the display
 	lcd := goLCD20x4.Open(2, 3, 4, 17, 27, 22, 10, 9, 11, 0, 5)
 	defer lcd.Close()
@@ -193,18 +87,6 @@ func main() {
 	gpio26.SetTriggerEdge("rising")
 	gpio26.AddPinInterrupt()
 
-	// GPIO 21 for left limit switch. GPIO 16 for right limit switch.
-	// Pull-ups are defined in the device tree overlay.
-	gpio21, _ := sysfsGPIO.InitPin(21, "in")
-	defer gpio21.ReleasePin()
-	gpio21.SetTriggerEdge("both")
-	gpio21.AddPinInterrupt()
-
-	gpio16, _ := sysfsGPIO.InitPin(16, "in")
-	defer gpio16.ReleasePin()
-	gpio16.SetTriggerEdge("both")
-	gpio16.AddPinInterrupt()
-
 	// GPIO 18 for the green button and GPIO 23 for the red button
 	gpio18, _ := sysfsGPIO.InitPin(18, "in")
 	defer gpio18.ReleasePin()
@@ -215,6 +97,21 @@ func main() {
 	defer gpio23.ReleasePin()
 	gpio23.SetTriggerEdge("rising")
 	gpio23.AddPinInterrupt()
+
+
+	// GPIO 21 for left limit switch. GPIO 16 for right limit switch.
+	// Pull-ups are defined in the device tree overlay.
+	gpioLeftLimit, _ := sysfsGPIO.InitPin(21, "in")
+	defer gpioLeftLimit.ReleasePin()
+	gpioLeftLimit.SetTriggerEdge("both")
+	gpioLeftLimit.AddPinInterrupt()
+	pg.gpioLeftLimit = gpioLeftLimit
+
+	gpioRightLimit, _ := sysfsGPIO.InitPin(16, "in")
+	defer gpioRightLimit.ReleasePin()
+	gpioRightLimit.SetTriggerEdge("both")
+	gpioRightLimit.AddPinInterrupt()
+	pg.gpioRightLimit = gpioRightLimit
 
 // TODO: Using an obscenely long amount of time delay doesn't fix this problem. Figure out a deterministic solution
 // to discard the first few interrupts.
@@ -254,10 +151,16 @@ func main() {
 		}
 	} ()
 
+//TODO: put stepperSpeed back in its proper place
+const stepperSpeed = 1000
 	stepper1 := softStepper.InitStepperTwoEnaPins(24, 12, 25, 8, 7, 1, time.Microsecond*stepperSpeed)
 	defer stepper1.ReleaseStepper()
 
 	stepper1.EnableHold()
+
+	pg.stepper = stepper1
+
+	pg.homeBoth()
 
 	for {
 		time.Sleep(time.Second)
@@ -274,10 +177,3 @@ func main() {
 
 }
 
-func home() {
-
-}
-
-func agitate() {
-
-}

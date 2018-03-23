@@ -1,7 +1,6 @@
 package menu
 
 import (
-	"fmt"
 	"github.com/the-sibyl/goLCD20x4"
 )
 type Menu struct {
@@ -24,7 +23,6 @@ func (m *Menu) Prev() {
 
 func (m *Menu) Next() {
 	m.currentMenuItem = m.currentMenuItem.next
-	fmt.Println(m.currentMenuItem)
 	m.Repaint()
 }
 
@@ -88,10 +86,6 @@ func (m *Menu) AddMenuItem(name string, units string, values string, adj1 string
 	// Update the links in the first and last menu items
 	m.firstMenuItem.prev = &mi
 	m.lastMenuItem.next = m.firstMenuItem
-
-
-	fmt.Println("Item added", mi)
-
 
 	return &mi
 }
