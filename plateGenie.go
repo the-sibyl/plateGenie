@@ -48,9 +48,8 @@ const (
 	// The maximum acceptable distance for a function to accept. This is a sanity check value.
 	maxDistance = 500.0
 	// Maximum number of steps to be traversed for an axis move on a homing operation
-	maxHomingSteps = 100000
-	homingStepDelay = 1000
-
+	maxHomingSteps  = 100000
+	homingStepDelay = 0
 )
 
 type PlateGenie struct {
@@ -61,10 +60,10 @@ type PlateGenie struct {
 	gpioMembrane3 *sysfsGPIO.IOPin
 	gpioMembrane4 *sysfsGPIO.IOPin
 
-	gpioRedButton *sysfsGPIO.IOPin
+	gpioRedButton   *sysfsGPIO.IOPin
 	gpioGreenButton *sysfsGPIO.IOPin
 
-	gpioLeftLimit *sysfsGPIO.IOPin
+	gpioLeftLimit  *sysfsGPIO.IOPin
 	gpioRightLimit *sysfsGPIO.IOPin
 
 	stepper *softStepper.Stepper
@@ -125,13 +124,15 @@ func Initialize(lcd *goLCD20x4.LCD20x4, gm1 *sysfsGPIO.IOPin, gm2 *sysfsGPIO.IOP
 	go func() {
 		for {
 			switch <-a1 {
-				case 1:
-					fmt.Println("Home both")
-				case 2:
-					fmt.Println("Home both")
+			case 1:
+				fmt.Println("Home both")
+				pg.homeBoth()
+			case 2:
+				fmt.Println("Home both")
+				pg.homeBoth()
 			}
 		}
-	} ()
+	}()
 
 	// ----------------
 	// SECOND MENU ITEM
@@ -142,13 +143,13 @@ func Initialize(lcd *goLCD20x4.LCD20x4, gm1 *sysfsGPIO.IOPin, gm2 *sysfsGPIO.IOP
 	go func() {
 		for {
 			switch <-a2 {
-				case 1:
-					fmt.Println("Home left")
-				case 2:
-					fmt.Println("Home right")
+			case 1:
+				fmt.Println("Home left")
+			case 2:
+				fmt.Println("Home right")
 			}
 		}
-	} ()
+	}()
 
 	// ---------------
 	// THIRD MENU ITEM
@@ -159,13 +160,13 @@ func Initialize(lcd *goLCD20x4.LCD20x4, gm1 *sysfsGPIO.IOPin, gm2 *sysfsGPIO.IOP
 	go func() {
 		for {
 			switch <-a3 {
-				case 1:
-					fmt.Println("Move to center")
-				case 2:
-					fmt.Println("Move to center")
+			case 1:
+				fmt.Println("Move to center")
+			case 2:
+				fmt.Println("Move to center")
 			}
 		}
-	} ()
+	}()
 
 	// ----------------
 	// FOURTH MENU ITEM
@@ -176,13 +177,13 @@ func Initialize(lcd *goLCD20x4.LCD20x4, gm1 *sysfsGPIO.IOPin, gm2 *sysfsGPIO.IOP
 	go func() {
 		for {
 			switch <-a4 {
-				case 1:
-					fmt.Println("Increase max speed")
-				case 2:
-					fmt.Println("Decrease max speed")
+			case 1:
+				fmt.Println("Increase max speed")
+			case 2:
+				fmt.Println("Decrease max speed")
 			}
 		}
-	} ()
+	}()
 
 	// ---------------
 	// FIFTH MENU ITEM
@@ -193,13 +194,32 @@ func Initialize(lcd *goLCD20x4.LCD20x4, gm1 *sysfsGPIO.IOPin, gm2 *sysfsGPIO.IOP
 	go func() {
 		for {
 			switch <-a5 {
-				case 1:
-					fmt.Println("Increase travel distance")
-				case 2:
-					fmt.Println("Decrease travel distance")
+			case 1:
+				fmt.Println("Increase travel distance")
+			case 2:
+				fmt.Println("Decrease travel distance")
 			}
 		}
-	} ()
+	}()
+
+	// ---------------
+	// SIXTH MENU ITEM
+	// ---------------
+	mi6 := m.AddMenuItem("Stepper Hold", "", "", "   ENA ", " DIS   ")
+	a6 := mi6.AddAction()
+	// Action handler
+	go func() {
+		for {
+			switch <-a6 {
+			case 1:
+				fmt.Println("Enable stepper hold")
+				pg.stepper.EnableHold()
+			case 2:
+				fmt.Println("Disable stepper hold")
+				pg.stepper.DisableHold()
+			}
+		}
+	}()
 
 	// Set up the membrane keypad GPIO here. Presume that the caller provides an input pin.
 	gm1.SetTriggerEdge("rising")
@@ -243,67 +263,64 @@ func Initialize(lcd *goLCD20x4.LCD20x4, gm1 *sysfsGPIO.IOPin, gm2 *sysfsGPIO.IOP
 
 	go func() {
 		for {
-			select {
-				case s := <-sysfsGPIO.GetInterruptStream():
-					switch(s.IOPin.GPIONum) {
-						// Button 1
-						case pg.gpioMembrane1.GPIONum:
-							fmt.Println("Button 1 pressed")
-							if !pg.menuBusyFlag {
-								pg.menuBusyFlag = true
-								go func() {
-									m.Button1Pressed()
-									pg.menuBusyFlag = false
-								} ()
-							}
-						// Button 2
-						case pg.gpioMembrane2.GPIONum:
-							if !pg.menuBusyFlag {
-								pg.menuBusyFlag = true
-								go func() {
-									m.Button2Pressed()
-									pg.menuBusyFlag = false
-								} ()
-							}
-						// Button 3
-						case pg.gpioMembrane3.GPIONum:
-							if !pg.menuBusyFlag {
-								pg.menuBusyFlag = true
-								go func() {
-									m.Button3Pressed()
-									pg.menuBusyFlag = false
-								} ()
-							}
-						// Button 4
-						case pg.gpioMembrane4.GPIONum:
-							if !pg.menuBusyFlag {
-								pg.menuBusyFlag = true
-								go func() {
-									m.Button4Pressed()
-									pg.menuBusyFlag = false
-								} ()
-							}
-						case pg.gpioLeftLimit.GPIONum:
-							fmt.Println("Left limit hit")
-						case pg.gpioRightLimit.GPIONum:
-							fmt.Println("Right limit hit")
-						case pg.gpioGreenButton.GPIONum:
-							pg.eStopFlag = false
-							pg.motionFlag = false
-							fmt.Println("Green button hit")
-						case pg.gpioRedButton.GPIONum:
-							pg.eStopFlag = true
-							pg.motionFlag = false
-							fmt.Println("Red button hit")
-					}
+			s := <-sysfsGPIO.GetInterruptStream()
+			switch s.IOPin.GPIONum {
+			// Button 1
+			case pg.gpioMembrane1.GPIONum:
+				fmt.Println("Button 1 pressed")
+				if !pg.menuBusyFlag {
+					pg.menuBusyFlag = true
+					go func() {
+						m.Button1Pressed()
+						pg.menuBusyFlag = false
+					}()
+				}
+			// Button 2
+			case pg.gpioMembrane2.GPIONum:
+				if !pg.menuBusyFlag {
+					pg.menuBusyFlag = true
+					go func() {
+						m.Button2Pressed()
+						pg.menuBusyFlag = false
+					}()
+				}
+			// Button 3
+			case pg.gpioMembrane3.GPIONum:
+				if !pg.menuBusyFlag {
+					pg.menuBusyFlag = true
+					go func() {
+						m.Button3Pressed()
+						pg.menuBusyFlag = false
+					}()
+				}
+			// Button 4
+			case pg.gpioMembrane4.GPIONum:
+				if !pg.menuBusyFlag {
+					pg.menuBusyFlag = true
+					go func() {
+						m.Button4Pressed()
+						pg.menuBusyFlag = false
+					}()
+				}
+			case pg.gpioLeftLimit.GPIONum:
+				fmt.Println("Left limit hit")
+			case pg.gpioRightLimit.GPIONum:
+				fmt.Println("Right limit hit")
+			case pg.gpioGreenButton.GPIONum:
+				pg.eStopFlag = false
+				pg.motionFlag = false
+				fmt.Println("Green button hit")
+			case pg.gpioRedButton.GPIONum:
+				pg.eStopFlag = true
+				pg.motionFlag = false
+				fmt.Println("Red button hit")
 			}
 		}
-	} ()
-
+	}()
 
 	pg.stepper = stepper
 
-//	pg.homeBoth()
+	//	pg.homeBoth()
 
 	for {
 		time.Sleep(time.Second)
@@ -334,7 +351,7 @@ func (pg *PlateGenie) homeBoth() error {
 			if leftStatus == 1 {
 				break
 			}
-			if k == maxHomingSteps - 1 {
+			if k == maxHomingSteps-1 {
 				return errors.New("Maximum number of steps exceeded on first left movement")
 			}
 		}
@@ -352,11 +369,11 @@ func (pg *PlateGenie) homeBoth() error {
 			if rightStatus == 1 {
 				break
 			}
-			if k == maxHomingSteps - 1 {
+			if k == maxHomingSteps-1 {
 				return errors.New("Maximum number of steps exceeded on left movement")
 			}
 		}
-		for k := 0; k < homingStepCount / 2; k++ {
+		for k := 0; k < homingStepCount/2; k++ {
 			if pg.eStopFlag {
 				return errors.New("Motion stopped because of E-Stop")
 			}
@@ -366,7 +383,7 @@ func (pg *PlateGenie) homeBoth() error {
 			if leftStatus == 1 {
 				break
 			}
-			if k == maxHomingSteps - 1 {
+			if k == maxHomingSteps-1 {
 				return errors.New("Maximum number of steps exceeded on second left movement")
 			}
 		}
