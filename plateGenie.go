@@ -49,6 +49,9 @@ const (
 	maxDistance = 500.0
 	// Maximum number of steps to be traversed for an axis move on a homing operation
 	maxHomingSteps  = 100000
+	// Number of steps to back-off in a homing operation
+	backoffSteps = 200
+	// Delay to slow down the stepper for homing movements in addition to the built-in delay from the stepper Initialize()
 	homingStepDelay = 0
 )
 
@@ -137,7 +140,7 @@ func Initialize(lcd *goLCD20x4.LCD20x4, gm1 *sysfsGPIO.IOPin, gm2 *sysfsGPIO.IOP
 	// ----------------
 	// SECOND MENU ITEM
 	// ----------------
-	mi2 := m.AddMenuItem("Home Single", "", "", " Left  ", " Right ")
+	mi2 := m.AddMenuItem("Home Single", "(This will unhome", "both axes.)", " Left  ", " Right ")
 	a2 := mi2.AddAction()
 	// Action handler
 	go func() {
@@ -145,8 +148,10 @@ func Initialize(lcd *goLCD20x4.LCD20x4, gm1 *sysfsGPIO.IOPin, gm2 *sysfsGPIO.IOP
 			switch <-a2 {
 			case 1:
 				fmt.Println("Home left")
+				pg.homeLeft()
 			case 2:
 				fmt.Println("Home right")
+				pg.homeRight()
 			}
 		}
 	}()
@@ -329,6 +334,7 @@ func Initialize(lcd *goLCD20x4.LCD20x4, gm1 *sysfsGPIO.IOPin, gm2 *sysfsGPIO.IOP
 	return pg
 
 }
+
 func (pg *PlateGenie) homeBoth() error {
 	if pg.motionFlag {
 		return errors.New("Axis is already in motion")
@@ -339,6 +345,21 @@ func (pg *PlateGenie) homeBoth() error {
 
 	// Measured number of steps between the two limit switches, set below
 	homingStepCount := 0
+
+	// The carriage is touching the left limit switch and needs to be backed off a bit for the first measurement
+	if leftStatus == 1 && rightStatus == 0 {
+		for k := 0; k < backoffSteps; k++ {
+			pg.stepper.StepForward()
+			rightStatus, _ = pg.gpioRightLimit.Read()
+			// This case should only happen if backoffSteps is unnecesarily large or the carriage 
+			// separation is huge
+			if rightStatus == 1 {
+				break
+			}
+		}
+	}
+
+	leftStatus, _ = pg.gpioLeftLimit.Read()
 
 	if leftStatus == 0 {
 		for k := 0; k < maxHomingSteps; k++ {
@@ -387,10 +408,71 @@ func (pg *PlateGenie) homeBoth() error {
 				return errors.New("Maximum number of steps exceeded on second left movement")
 			}
 		}
+	} else {
+		return errors.New(`Homing malfunction. Try increasing the number of backoff steps or beginning the homing operation
+			 closer to the center.`)
 	}
 
 	pg.homingStepCount = homingStepCount
 	pg.homedFlag = true
+
+	return nil
+}
+
+func (pg *PlateGenie) homeLeft() error {
+	if pg.motionFlag {
+		return errors.New("Axis is already in motion")
+	}
+
+	pg.homedFlag = false
+
+	leftStatus, _ := pg.gpioLeftLimit.Read()
+
+	if leftStatus == 0 {
+		for k := 0; k < maxHomingSteps; k++ {
+			if pg.eStopFlag {
+				return errors.New("Motion stopped because of E-Stop")
+			}
+			pg.stepper.StepBackward()
+			time.Sleep(time.Microsecond * homingStepDelay)
+			leftStatus, _ = pg.gpioLeftLimit.Read()
+			if leftStatus == 1 {
+				break
+			}
+			if k == maxHomingSteps-1 {
+				return errors.New("Maximum number of steps exceeded on left homing movement")
+			}
+		}
+	}
+
+	return nil
+}
+
+func (pg *PlateGenie) homeRight() error {
+	if pg.motionFlag {
+		return errors.New("Axis is already in motion")
+	}
+
+	pg.homedFlag = false
+
+	rightStatus, _ := pg.gpioRightLimit.Read()
+
+	if rightStatus == 0 {
+		for k := 0; k < maxHomingSteps; k++ {
+			if pg.eStopFlag {
+				return errors.New("Motion stopped because of E-Stop")
+			}
+			pg.stepper.StepForward()
+			time.Sleep(time.Microsecond * homingStepDelay)
+			rightStatus, _ = pg.gpioRightLimit.Read()
+			if rightStatus == 1 {
+				break
+			}
+			if k == maxHomingSteps-1 {
+				return errors.New("Maximum number of steps exceeded on right homing movement")
+			}
+		}
+	}
 
 	return nil
 }
