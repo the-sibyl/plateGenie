@@ -51,10 +51,6 @@ func moveTrapezoidal(s *softStepper.Stepper, numSteps int, speedPercentage int, 
 		return errors.New("Invalid constant speed percentage parameter")
 	}
 
-	fmt.Println("Number of steps:", numSteps)
-	fmt.Println("Speed percentage:", speedPercentage)
-	fmt.Println("Constant speed percentage:", constantSpeedPercentage)
-
 	// Pulse duration from the stepper itself
 	pulseDuration := s.GetPulseDuration()
 	// Delay added to slow down the stepper by the speedPeercentage parameter
@@ -62,7 +58,6 @@ func moveTrapezoidal(s *softStepper.Stepper, numSteps int, speedPercentage int, 
 	// Amount of total time taken per step at constant speed: stepper time AND speedPercentage slow-down time 
 	// are both included
 	constantSpeedDelay:= pulseDuration + constantSpeedDelta
-	fmt.Println("constantSpeedDelay:", constantSpeedDelay)
 
 	// I derived this equation on paper. The assumption that I made is that the average velocity of the trapezoidal
 	// ramps is half the constant velocity.
@@ -78,27 +73,31 @@ func moveTrapezoidal(s *softStepper.Stepper, numSteps int, speedPercentage int, 
 	accelTime := time.Duration(numStepsAccel) * 2 * constantSpeedDelay
 	// Mininum acceleration time based on the stepper speed
 	minAccelTime := time.Duration(numStepsAccel) * pulseDuration
-
-	fmt.Println("accelTime", accelTime)
-	fmt.Println("minAccelTime", minAccelTime)
-
+	// Amount of sleep time difference between two acceleration steps (accumulate)
 	accelDelta := (accelTime - minAccelTime) / time.Duration(numStepsAccel * numStepsAccel)
-
-	fmt.Println("accelDelta:", accelDelta)
-
+	// Start value for the loop
 	currentAccelSleepTime := constantSpeedDelta + accelDelta * time.Duration(numStepsAccel)
-	fmt.Println("accel sleep time", currentAccelSleepTime)
 
 	for k := 0; k < numStepsAccel; k++ {
 		s.StepForward()
 		time.Sleep(currentAccelSleepTime)
 		currentAccelSleepTime -= accelDelta
-		fmt.Println("Accel step", k, "and currentAccelSleepTime", currentAccelSleepTime)
 	}
 
 	for k:= 0; k < numStepsConstantSpeed; k++ {
 		s.StepForward()
 		time.Sleep(constantSpeedDelta)
+	}
+
+	// Copy the same values from the acceleration calculations
+	decelDelta := accelDelta
+	// Start value for the loop
+	currentDecelSleepTime := constantSpeedDelta
+
+	for k := 0; k< numStepsDecel; k++ {
+		s.StepForward()
+		time.Sleep(currentDecelSleepTime)
+		currentDecelSleepTime += decelDelta
 	}
 
 	fmt.Println(accelDelta)
