@@ -32,11 +32,11 @@ import (
 	"github.com/the-sibyl/softStepper"
 )
 
-func move(s *softStepper.Stepper, numSteps int, speedPercentage int) {
-	if numSteps < 0 {
-		s.StepBackwardMulti(-numSteps)
-	} else if numSteps > 0 {
-		s.StepForwardMulti(numSteps)
+func move(s *softStepper.Stepper, numStepsSigned int, speedPercentage int) {
+	if numStepsSigned < 0 {
+		s.StepBackwardMulti(-numStepsSigned)
+	} else if numStepsSigned > 0 {
+		s.StepForwardMulti(numStepsSigned)
 	}
 }
 
@@ -44,17 +44,29 @@ func move(s *softStepper.Stepper, numSteps int, speedPercentage int) {
 // numSteps: total number of steps to move
 // speedPercentage: percentage of max stepper speed to move
 // constantSpeedPercentage: percentage of time spent at constant speed
-func moveTrapezoidal(s *softStepper.Stepper, numSteps int, speedPercentage int, constantSpeedPercentage int) error {
+func moveTrapezoidal(s *softStepper.Stepper, numStepsSigned int, speedPercentage int, constantSpeedPercentage int) error {
 	if speedPercentage < 1 || speedPercentage > 100 {
 		return errors.New("Invalid speed percentage parameter")
-	} else if constantSpeedPercentage < 1 || constantSpeedPercentage > 100 {
+	} else if constantSpeedPercentage < 1 || constantSpeedPercentage > 99 {
 		return errors.New("Invalid constant speed percentage parameter")
+	}
+
+	numSteps := 0
+	forwardDirection := true
+	if numStepsSigned < 0 {
+		numSteps = -numStepsSigned
+		forwardDirection = false
+	} else if numStepsSigned > 0 {
+		numSteps = numStepsSigned
+	} else {
+		// Do nothing as no motion was requested
+		return nil
 	}
 
 	// Pulse duration from the stepper itself
 	pulseDuration := s.GetPulseDuration()
 	// Delay added to slow down the stepper by the speedPeercentage parameter
-	constantSpeedDelta := pulseDuration * time.Duration(100 / float32(speedPercentage) - 1)
+	constantSpeedDelta := pulseDuration * time.Duration(100 / float32(constantSpeedPercentage) - 1)
 	// Amount of total time taken per step at constant speed: stepper time AND speedPercentage slow-down time 
 	// are both included
 	constantSpeedDelay:= pulseDuration + constantSpeedDelta
@@ -62,7 +74,8 @@ func moveTrapezoidal(s *softStepper.Stepper, numSteps int, speedPercentage int, 
 	// I derived this equation on paper. The assumption that I made is that the average velocity of the trapezoidal
 	// ramps is half the constant velocity.
 
-	numStepsAccelDecel := int(float32(numSteps) / (2 / (100 / float32(speedPercentage) - 1) + 1))
+	numStepsAccelDecel := int(float32(numSteps) / (2 / (100 / float32(constantSpeedPercentage) - 1) + 1))
+	fmt.Println(numStepsAccelDecel)
 	numStepsAccel := numStepsAccelDecel / 2
 	numStepsDecel := numStepsAccelDecel - numStepsAccel
 	numStepsConstantSpeed := numSteps - numStepsAccel - numStepsDecel
@@ -79,13 +92,21 @@ func moveTrapezoidal(s *softStepper.Stepper, numSteps int, speedPercentage int, 
 	currentAccelSleepTime := constantSpeedDelta + accelDelta * time.Duration(numStepsAccel)
 
 	for k := 0; k < numStepsAccel; k++ {
-		s.StepForward()
+		if forwardDirection {
+			s.StepForward()
+		} else {
+			s.StepBackward()
+		}
 		time.Sleep(currentAccelSleepTime)
 		currentAccelSleepTime -= accelDelta
 	}
 
 	for k:= 0; k < numStepsConstantSpeed; k++ {
-		s.StepForward()
+		if forwardDirection {
+			s.StepForward()
+		} else {
+			s.StepBackward()
+		}
 		time.Sleep(constantSpeedDelta)
 	}
 
@@ -95,12 +116,14 @@ func moveTrapezoidal(s *softStepper.Stepper, numSteps int, speedPercentage int, 
 	currentDecelSleepTime := constantSpeedDelta
 
 	for k := 0; k< numStepsDecel; k++ {
-		s.StepForward()
+		if forwardDirection {
+			s.StepForward()
+		} else {
+			s.StepBackward()
+		}
 		time.Sleep(currentDecelSleepTime)
 		currentDecelSleepTime += decelDelta
 	}
-
-	fmt.Println(accelDelta)
 
 	return nil
 }
