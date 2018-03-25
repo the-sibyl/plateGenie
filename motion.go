@@ -26,91 +26,82 @@ package plateGenie
 import (
 	"errors"
 	"fmt"
-	"math"
+//	"math"
 	"time"
 
 	"github.com/the-sibyl/softStepper"
 )
-// Distance is in millimeters. The sign connotes direction.
-func move(s *softStepper.Stepper, dist float64) (int, error) {
-	if math.Abs(dist) > float64(maxDistance) {
-		return 0, errors.New("Requested distance exceeds safe travel limits.")
-	}
 
-	numSteps := int(math.Floor(math.Abs((float64(dist))/screwLead) * stepsPerRev))
-
-	if dist < 0 {
+func move(s *softStepper.Stepper, numSteps int, speedPercentage int) {
+	if numSteps < 0 {
+		s.StepBackwardMulti(-numSteps)
+	} else if numSteps > 0 {
 		s.StepForwardMulti(numSteps)
-	} else if dist > 0 {
-		s.StepBackwardMulti(numSteps)
 	}
-
-	return numSteps, nil
 }
 
 // Move with a trapezoidal acceleration profile
-func moveTrapezoidal(s *softStepper.Stepper, dist float64) (int, error) {
-	if math.Abs(dist) > float64(maxDistance) {
-		return 0, errors.New("Requested distance exceeds safe travel limits.")
+// numSteps: total number of steps to move
+// speedPercentage: percentage of max stepper speed to move
+// constantSpeedPercentage: percentage of time spent at constant speed
+func moveTrapezoidal(s *softStepper.Stepper, numSteps int, speedPercentage int, constantSpeedPercentage int) error {
+	if speedPercentage < 1 || speedPercentage > 100 {
+		return errors.New("Invalid speed percentage parameter")
+	} else if constantSpeedPercentage < 1 || constantSpeedPercentage > 100 {
+		return errors.New("Invalid constant speed percentage parameter")
 	}
 
-	averageDelay := float64(trapMaximumDelay+trapMinimumDelay) / 2.0
-	numDelayDivisions := int(math.Floor(trapAccelPeriod / averageDelay))
-	delayIncrement := float64(trapMaximumDelay-trapMinimumDelay) / float64(numDelayDivisions)
+	fmt.Println("Number of steps:", numSteps)
+	fmt.Println("Speed percentage:", speedPercentage)
+	fmt.Println("Constant speed percentage:", constantSpeedPercentage)
 
-	fmt.Println(averageDelay, numDelayDivisions, delayIncrement)
+	// Pulse duration from the stepper itself
+	pulseDuration := s.GetPulseDuration()
+	// Delay added to slow down the stepper by the speedPeercentage parameter
+	constantSpeedDelta := pulseDuration * time.Duration(100 / float32(speedPercentage) - 1)
+	// Amount of total time taken per step at constant speed: stepper time AND speedPercentage slow-down time 
+	// are both included
+	constantSpeedDelay:= pulseDuration + constantSpeedDelta
+	fmt.Println("constantSpeedDelay:", constantSpeedDelay)
 
-	// Accelerate
-	stepCountAcc := 0
-	for delay := float64(trapMaximumDelay); delay >= float64(trapMinimumDelay); delay = delay - delayIncrement {
-		if stepCountAcc > numDelayDivisions {
-			return 0, errors.New("Trapezoidal acceleration error")
-		}
-		if dist < 0 {
-			s.StepForward()
-		} else if dist > 0 {
-			s.StepBackward()
-		}
-		time.Sleep(time.Microsecond * time.Duration(delay))
-		stepCountAcc++
+	// I derived this equation on paper. The assumption that I made is that the average velocity of the trapezoidal
+	// ramps is half the constant velocity.
+
+	numStepsAccelDecel := int(float32(numSteps) / (2 / (100 / float32(speedPercentage) - 1) + 1))
+	numStepsAccel := numStepsAccelDecel / 2
+	numStepsDecel := numStepsAccelDecel - numStepsAccel
+	numStepsConstantSpeed := numSteps - numStepsAccel - numStepsDecel
+
+	fmt.Println(numStepsAccel, numStepsDecel, numStepsConstantSpeed)
+
+	// Actual acceleration time
+	accelTime := time.Duration(numStepsAccel) * 2 * constantSpeedDelay
+	// Mininum acceleration time based on the stepper speed
+	minAccelTime := time.Duration(numStepsAccel) * pulseDuration
+
+	fmt.Println("accelTime", accelTime)
+	fmt.Println("minAccelTime", minAccelTime)
+
+	accelDelta := (accelTime - minAccelTime) / time.Duration(numStepsAccel * numStepsAccel)
+
+	fmt.Println("accelDelta:", accelDelta)
+
+	currentAccelSleepTime := constantSpeedDelta + accelDelta * time.Duration(numStepsAccel)
+	fmt.Println("accel sleep time", currentAccelSleepTime)
+
+	for k := 0; k < numStepsAccel; k++ {
+		s.StepForward()
+		time.Sleep(currentAccelSleepTime)
+		currentAccelSleepTime -= accelDelta
+		fmt.Println("Accel step", k, "and currentAccelSleepTime", currentAccelSleepTime)
 	}
 
-	// Constant speed
-
-	numStepsConstantSpeed := int(math.Floor(math.Abs((float64(dist))/screwLead)*stepsPerRev)) - 2*stepCountAcc
-
-	// FIXME: Enforce that the acceleration and deceleration segments do not cause the carriage to travel too far!
-	if numStepsConstantSpeed < 0 {
-		return 0, errors.New("Acceleration/deceleration profile is too long")
+	for k:= 0; k < numStepsConstantSpeed; k++ {
+		s.StepForward()
+		time.Sleep(constantSpeedDelta)
 	}
 
-	if dist < 0 {
-		s.StepForwardMulti(numStepsConstantSpeed)
-	} else if dist > 0 {
-		s.StepBackwardMulti(numStepsConstantSpeed)
-	}
+	fmt.Println(accelDelta)
 
-	// Decelerate
-	stepCountDec := 0
-	for delay := float64(trapMinimumDelay); delay <= float64(trapMaximumDelay); delay = delay + delayIncrement {
-		if stepCountDec > numDelayDivisions {
-			return 0, errors.New("Trapezoidal acceleration error")
-		}
-		if dist < 0 {
-			s.StepForward()
-		} else if dist > 0 {
-			s.StepBackward()
-		}
-		time.Sleep(time.Microsecond * time.Duration(delay))
-		stepCountDec++
-	}
-	fmt.Println("Accel Steps:", stepCountAcc)
-	fmt.Println("Decel Steps:", stepCountDec)
-	if stepCountAcc != stepCountDec {
-		return 0, errors.New(`Mismatch between acceleration and deceleration steps. 
-			This would cause the carriage to drift in one direction.`)
-	}
-
-	totalSteps := stepCountAcc + numStepsConstantSpeed + stepCountDec
-	return totalSteps, nil
+	return nil
 }
