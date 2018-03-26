@@ -1,21 +1,21 @@
 package plateGenie
 
 import (
-	"time"
 	"github.com/the-sibyl/goLCD20x4"
+	"time"
 )
 
 // Debounce interval in microseconds
-const debounceTime = 60000
+const debounceTime = 160000
 
 type Menu struct {
-	lcd *goLCD20x4.LCD20x4
-	firstMenuItem *MenuItem
-	lastMenuItem *MenuItem
+	lcd             *goLCD20x4.LCD20x4
+	firstMenuItem   *MenuItem
+	lastMenuItem    *MenuItem
 	currentMenuItem *MenuItem
 }
 
-func CreateMenu(lcd *goLCD20x4.LCD20x4) (*Menu) {
+func CreateMenu(lcd *goLCD20x4.LCD20x4) *Menu {
 	var m Menu
 	m.lcd = lcd
 	return &m
@@ -51,18 +51,17 @@ func (m *Menu) Repaint() {
 }
 
 type MenuItem struct {
-	Name string
-	Units string
-	Values string
+	Name        string
+	Units       string
+	Values      string
 	Adjustments string
-	adj1 string
-	adj2 string
+	adj1        string
+	adj2        string
 	// A channel correpsonding to the soft key pressed (1 or 2)
 	action chan int
-	prev *MenuItem
-	next *MenuItem
+	prev   *MenuItem
+	next   *MenuItem
 }
-
 
 // Two adjustents per screen
 // Seven-character limit per adjustment
@@ -124,4 +123,3 @@ func (mi *MenuItem) FormatAdjustmentsString() {
 
 	mi.Adjustments = sc.LeftArrow + " " + mi.adj1 + "  " + mi.adj2 + " " + sc.RightArrow
 }
-

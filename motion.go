@@ -26,7 +26,7 @@ package plateGenie
 import (
 	"errors"
 	"fmt"
-//	"math"
+	//	"math"
 	"time"
 
 	"github.com/the-sibyl/softStepper"
@@ -86,15 +86,15 @@ func (pg *PlateGenie) moveTrapezoidal(numStepsSigned int, speedPercentage int, c
 	// Pulse duration from the stepper itself
 	pulseDuration := pg.stepper.GetPulseDuration()
 	// Delay added to slow down the stepper by the speedPeercentage parameter
-	constantSpeedDelta := pulseDuration * time.Duration(100 / float32(constantSpeedPercentage) - 1)
-	// Amount of total time taken per step at constant speed: stepper time AND speedPercentage slow-down time 
+	constantSpeedDelta := pulseDuration * time.Duration(100/float32(constantSpeedPercentage)-1)
+	// Amount of total time taken per step at constant speed: stepper time AND speedPercentage slow-down time
 	// are both included
-	constantSpeedDelay:= pulseDuration + constantSpeedDelta
+	constantSpeedDelay := pulseDuration + constantSpeedDelta
 
 	// I derived this equation on paper. The assumption that I made is that the average velocity of the trapezoidal
 	// ramps is half the constant velocity.
 
-	numStepsAccelDecel := int(float32(numSteps) / (2 / (100 / float32(constantSpeedPercentage) - 1) + 1))
+	numStepsAccelDecel := int(float32(numSteps) / (2/(100/float32(constantSpeedPercentage)-1) + 1))
 	fmt.Println(numStepsAccelDecel)
 	numStepsAccel := numStepsAccelDecel / 2
 	numStepsDecel := numStepsAccelDecel - numStepsAccel
@@ -107,9 +107,9 @@ func (pg *PlateGenie) moveTrapezoidal(numStepsSigned int, speedPercentage int, c
 	// Mininum acceleration time based on the stepper speed
 	minAccelTime := time.Duration(numStepsAccel) * pulseDuration
 	// Amount of sleep time difference between two acceleration steps (accumulate)
-	accelDelta := (accelTime - minAccelTime) / time.Duration(numStepsAccel * numStepsAccel)
+	accelDelta := (accelTime - minAccelTime) / time.Duration(numStepsAccel*numStepsAccel)
 	// Start value for the loop
-	currentAccelSleepTime := constantSpeedDelta + accelDelta * time.Duration(numStepsAccel)
+	currentAccelSleepTime := constantSpeedDelta + accelDelta*time.Duration(numStepsAccel)
 
 	for k := 0; k < numStepsAccel; k++ {
 		if pg.eStopFlag {
@@ -124,7 +124,7 @@ func (pg *PlateGenie) moveTrapezoidal(numStepsSigned int, speedPercentage int, c
 		currentAccelSleepTime -= accelDelta
 	}
 
-	for k:= 0; k < numStepsConstantSpeed; k++ {
+	for k := 0; k < numStepsConstantSpeed; k++ {
 		if pg.eStopFlag {
 			return errors.New("Motion stopped due to emergency stop signal")
 		}
@@ -141,7 +141,7 @@ func (pg *PlateGenie) moveTrapezoidal(numStepsSigned int, speedPercentage int, c
 	// Start value for the loop
 	currentDecelSleepTime := constantSpeedDelta
 
-	for k := 0; k< numStepsDecel; k++ {
+	for k := 0; k < numStepsDecel; k++ {
 		if pg.eStopFlag {
 			return errors.New("Motion stopped due to emergency stop signal")
 		}
@@ -173,7 +173,7 @@ func (pg *PlateGenie) homeBoth() error {
 		for k := 0; k < backoffSteps; k++ {
 			pg.stepper.StepForward()
 			rightStatus, _ = pg.gpioRightLimit.Read()
-			// This case should only happen if backoffSteps is unnecesarily large or the carriage 
+			// This case should only happen if backoffSteps is unnecesarily large or the carriage
 			// separation is huge
 			if rightStatus == 1 {
 				break
@@ -267,7 +267,7 @@ func (pg *PlateGenie) homeLeft() error {
 		}
 	}
 
-	// Do this open-loop. backoffSteps should be on the order of the amount of steps required to clear the 
+	// Do this open-loop. backoffSteps should be on the order of the amount of steps required to clear the
 	// limit switch.
 	for k := 0; k < backoffSteps; k++ {
 		pg.stepper.StepForward()
@@ -303,7 +303,7 @@ func (pg *PlateGenie) homeRight() error {
 		}
 	}
 
-	// Do this open-loop. backoffSteps should be on the order of the amount of steps required to clear the 
+	// Do this open-loop. backoffSteps should be on the order of the amount of steps required to clear the
 	// limit switch.
 	for k := 0; k < backoffSteps; k++ {
 		pg.stepper.StepBackward()
@@ -312,4 +312,3 @@ func (pg *PlateGenie) homeRight() error {
 
 	return nil
 }
-

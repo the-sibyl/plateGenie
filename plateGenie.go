@@ -47,7 +47,7 @@ const (
 	// The maximum acceptable distance for a function to accept. This is a sanity check value.
 	maxDistance = 500.0
 	// Maximum number of steps to be traversed for an axis move on a homing operation
-	maxHomingSteps  = 100000
+	maxHomingSteps = 100000
 	// Number of steps to back-off in a homing operation
 	backoffSteps = 50
 	// Delay to slow down the stepper for homing movements in addition to the built-in delay from the stepper Initialize()
