@@ -57,7 +57,6 @@ func main() {
 	gpio23, _ := sysfsGPIO.InitPin(23, "in")
 	defer gpio23.ReleasePin()
 
-
 	// GPIO 21 for left limit switch. GPIO 16 for right limit switch.
 	// Pull-ups are defined in the device tree overlay.
 	gpio21, _ := sysfsGPIO.InitPin(21, "in")
@@ -66,7 +65,7 @@ func main() {
 	gpio16, _ := sysfsGPIO.InitPin(16, "in")
 	defer gpio16.ReleasePin()
 
-	// Set this to the minimum reasonable time (on the order of 1 ms) to give the most optionsa for speed
+	// Set this to the minimum reasonable time (on the order of 1 ms) to give the most options for speed
 	const stepperSpeed = 1500
 	stepper := softStepper.InitStepperTwoEnaPins(24, 12, 25, 8, 7, 1, time.Microsecond*stepperSpeed)
 
