@@ -83,6 +83,9 @@ type PlateGenie struct {
 	// Menu busy flag
 	menuBusyFlag bool
 
+	// Limit watchdog flag: if enabled, motion stops and emergency stop is triggered
+	limitWatchdogFlag bool
+
 	// Position starting with 0 on the motor side
 	position int
 
@@ -115,6 +118,7 @@ func Initialize(lcd *goLCD20x4.LCD20x4, gm1 *sysfsGPIO.IOPin, gm2 *sysfsGPIO.IOP
 	pg.motionFlag = false
 	pg.homedFlag = false
 	pg.menuBusyFlag = false
+	pg.limitWatchdogFlag = false
 	pg.speedPercentage = defaultSpeedPercentage
 	pg.constantSpeedPercentage = defaultConstantSpeedPercentage
 	pg.travelPercentage = defaultTravelPercentage
@@ -150,6 +154,7 @@ func Initialize(lcd *goLCD20x4.LCD20x4, gm1 *sysfsGPIO.IOPin, gm2 *sysfsGPIO.IOP
 				homeBothFlag = true
 				go func() {
 					fmt.Println("Home both")
+					pg.limitWatchdogFlag = false
 					pg.homeBoth()
 					homeBothFlag = false
 				} ()
@@ -172,6 +177,7 @@ func Initialize(lcd *goLCD20x4.LCD20x4, gm1 *sysfsGPIO.IOPin, gm2 *sysfsGPIO.IOP
 					homeSingleFlag = true
 					go func() {
 						fmt.Println("Home left")
+						pg.limitWatchdogFlag = false
 						pg.homeLeft()
 						homeSingleFlag = false
 					} ()
@@ -181,6 +187,7 @@ func Initialize(lcd *goLCD20x4.LCD20x4, gm1 *sysfsGPIO.IOPin, gm2 *sysfsGPIO.IOP
 					homeSingleFlag = true
 					go func() {
 						fmt.Println("Home right")
+						pg.limitWatchdogFlag = false
 						pg.homeRight()
 						homeSingleFlag = false
 					} ()
@@ -208,7 +215,9 @@ func Initialize(lcd *goLCD20x4.LCD20x4, gm1 *sysfsGPIO.IOPin, gm2 *sysfsGPIO.IOP
 				fmt.Println("Distance to move:", distToMove)
 				go func() {
 					fmt.Println("Move to center")
+					pg.limitWatchdogFlag = true
 					pg.moveTrapezoidal(distToMove, pg.speedPercentage, pg.constantSpeedPercentage)
+					pg.limitWatchdogFlag = false
 					moveToCenterFlag = false
 				} ()
 			}
@@ -338,7 +347,9 @@ func Initialize(lcd *goLCD20x4.LCD20x4, gm1 *sysfsGPIO.IOPin, gm2 *sysfsGPIO.IOP
 					go func() {
 						fmt.Println("Left extent")
 						distToMove := -pg.position
+						pg.limitWatchdogFlag = true
 						pg.moveTrapezoidal(distToMove, pg.speedPercentage, pg.constantSpeedPercentage)
+						pg.limitWatchdogFlag = false
 						homeExtentsFlag = false
 					} ()
 				}
@@ -348,7 +359,9 @@ func Initialize(lcd *goLCD20x4.LCD20x4, gm1 *sysfsGPIO.IOPin, gm2 *sysfsGPIO.IOP
 					go func() {
 						fmt.Println("Right extent")
 						distToMove := pg.homingStepCount - pg.position
+						pg.limitWatchdogFlag = true
 						pg.moveTrapezoidal(distToMove, pg.speedPercentage, pg.constantSpeedPercentage)
+						pg.limitWatchdogFlag = false
 						homeExtentsFlag = false
 					} ()
 				}
@@ -514,11 +527,19 @@ func Initialize(lcd *goLCD20x4.LCD20x4, gm1 *sysfsGPIO.IOPin, gm2 *sysfsGPIO.IOP
 				}
 			case pg.gpioLeftLimit.GPIONum:
 				fmt.Println("Left limit hit")
+				if pg.limitWatchdogFlag {
+					pg.eStopFlag = true
+				}
 			case pg.gpioRightLimit.GPIONum:
 				fmt.Println("Right limit hit")
+				if pg.limitWatchdogFlag {
+					pg.eStopFlag = true
+				}
 			case pg.gpioGreenButton.GPIONum:
+				if pg.eStopFlag {
+					pg.motionFlag = false
+				}
 				pg.eStopFlag = false
-				pg.motionFlag = false
 				fmt.Println("Green button hit")
 			case pg.gpioRedButton.GPIONum:
 				pg.eStopFlag = true
