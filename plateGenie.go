@@ -400,6 +400,37 @@ func Initialize(lcd *goLCD20x4.LCD20x4, gm1 *sysfsGPIO.IOPin, gm2 *sysfsGPIO.IOP
 			}
 		}
 	}()
+
+	// ---------------
+	// NINTH MENU ITEM
+	// ---------------
+	mi9 := m.AddMenuItem("Agitation Cycle", "", "", " Begin ", "  End  ")
+	a9 := mi9.AddAction()
+	// Action handler
+	go func() {
+		acFlag := false
+		for {
+			switch <-a9 {
+			case 1:
+				if !acFlag {
+					acFlag = true
+					go func() {
+						fmt.Println("Begin agitation")
+						acFlag = false
+					} ()
+				}
+			case 2:
+				if !acFlag {
+					acFlag = true
+					go func() {
+						fmt.Println("End agitation")
+						acFlag = false
+					} ()
+				}
+			}
+		}
+	}()
+
 	// Set up the membrane keypad GPIO here. Presume that the caller provides an input pin.
 	gm1.SetTriggerEdge("rising")
 	gm1.AddPinInterrupt()
