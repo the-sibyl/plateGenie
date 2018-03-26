@@ -36,6 +36,12 @@ func (pg *PlateGenie) move(s *softStepper.Stepper, numStepsSigned int, speedPerc
 	if pg.motionFlag {
 		return errors.New("Axis is already in motion")
 	}
+	if speedPercentage <= 0 || speedPercentage > 100 {
+		return errors.New("Invalid speed percentage value")
+	}
+
+	// Slow down the movement based on the maximum speed of the motor
+	slowDown := pg.stepper.GetPulseDuration() * time.Duration((100 / speedPercentage - 1))
 
 	if numStepsSigned < 0 {
 		for k := 0; k < -numStepsSigned; k++ {
@@ -43,6 +49,7 @@ func (pg *PlateGenie) move(s *softStepper.Stepper, numStepsSigned int, speedPerc
 				return errors.New("Motion stopped due to emergency stop signal")
 			}
 			s.StepBackward()
+			time.Sleep(slowDown)
 			pg.position--
 		}
 	} else if numStepsSigned > 0 {
@@ -51,6 +58,7 @@ func (pg *PlateGenie) move(s *softStepper.Stepper, numStepsSigned int, speedPerc
 				return errors.New("Motion stopped due to emergency stop signal")
 			}
 			s.StepForward()
+			time.Sleep(slowDown)
 			pg.position++
 		}
 	}
@@ -88,7 +96,7 @@ func (pg *PlateGenie) moveTrapezoidal(numStepsSigned int, speedPercentage int, c
 	// Pulse duration from the stepper itself
 	pulseDuration := pg.stepper.GetPulseDuration()
 	// Delay added to slow down the stepper by the speedPeercentage parameter
-	constantSpeedDelta := pulseDuration * time.Duration(100/float32(constantSpeedPercentage)-1)
+	constantSpeedDelta := pulseDuration * time.Duration(100/float32(speedPercentage)-1)
 	// Amount of total time taken per step at constant speed: stepper time AND speedPercentage slow-down time
 	// are both included
 	constantSpeedDelay := pulseDuration + constantSpeedDelta

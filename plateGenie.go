@@ -228,8 +228,9 @@ func Initialize(lcd *goLCD20x4.LCD20x4, gm1 *sysfsGPIO.IOPin, gm2 *sysfsGPIO.IOP
 						if newSpeedPercentage <= 100 {
 							pg.speedPercentage = newSpeedPercentage
 						}
+						mi4.Values = strconv.Itoa(pg.speedPercentage) + "%"
+						m.Repaint()
 						time.Sleep(pg.debounceTime)
-						lcd.WriteLineCentered(strconv.Itoa(pg.speedPercentage) + "%", 3)
 						changeSpeedFlag = false
 					} ()
 				}
@@ -242,8 +243,9 @@ func Initialize(lcd *goLCD20x4.LCD20x4, gm1 *sysfsGPIO.IOPin, gm2 *sysfsGPIO.IOP
 						if newSpeedPercentage > 0 {
 							pg.speedPercentage = newSpeedPercentage
 						}
+						mi4.Values = strconv.Itoa(pg.speedPercentage) + "%"
+						m.Repaint()
 						time.Sleep(pg.debounceTime)
-						lcd.WriteLineCentered(strconv.Itoa(pg.speedPercentage) + "%", 3)
 						changeSpeedFlag = false
 					} ()
 				}
