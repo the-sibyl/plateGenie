@@ -46,6 +46,8 @@ const (
 	defaultSpeedPercentage = 80
 	// Default percentage of time for the constant speed portion of a trapezoidal movement
 	defaultConstantSpeedPercentage = 70
+	// Default percentage of motion of the maximum distance to move the carriage
+	defaultTravelPercentage = 50
 	// Default debounce time in microseconds for actions like keypresses
 	defaultDebounceTime = 160000
 )
@@ -90,6 +92,9 @@ type PlateGenie struct {
 	// Percentage of time at constant speed during a trapezoidal movement
 	constantSpeedPercentage int
 
+	// Percentage of the maximum distance to move the carriage
+	travelPercentage int
+
 	// Debounce time for key press input
 	debounceTime time.Duration
 }
@@ -112,6 +117,7 @@ func Initialize(lcd *goLCD20x4.LCD20x4, gm1 *sysfsGPIO.IOPin, gm2 *sysfsGPIO.IOP
 	pg.menuBusyFlag = false
 	pg.speedPercentage = defaultSpeedPercentage
 	pg.constantSpeedPercentage = defaultConstantSpeedPercentage
+	pg.travelPercentage = defaultTravelPercentage
 	pg.debounceTime = defaultDebounceTime
 
 	// Set up the display
@@ -256,16 +262,43 @@ func Initialize(lcd *goLCD20x4.LCD20x4, gm1 *sysfsGPIO.IOPin, gm2 *sysfsGPIO.IOP
 	// ---------------
 	// FIFTH MENU ITEM
 	// ---------------
-	mi5 := m.AddMenuItem("Travel", "(% Max Distance)", "100%", "   INC ", " DEC   ")
+	mi5 := m.AddMenuItem("Travel", "(% Max Distance)", strconv.Itoa(pg.travelPercentage) + "%", "   INC ", " DEC   ")
 	a5 := mi5.AddAction()
 	// Action handler
 	go func() {
+		changeTravelFlag := false
 		for {
 			switch <-a5 {
 			case 1:
-				fmt.Println("Increase travel distance")
+				if !changeTravelFlag {
+					changeTravelFlag = true
+					go func() {
+						fmt.Println("Increase travel percentage")
+						newTravelPercentage := pg.travelPercentage + 10
+						if newTravelPercentage <= 100 {
+							pg.travelPercentage = newTravelPercentage
+						}
+						mi5.Values = strconv.Itoa(pg.travelPercentage) + "%"
+						m.Repaint()
+						time.Sleep(pg.debounceTime)
+						changeTravelFlag = false
+					} ()
+				}
 			case 2:
-				fmt.Println("Decrease travel distance")
+				if !changeTravelFlag {
+					changeTravelFlag = true
+					go func() {
+						fmt.Println("Decrease travel percentage")
+						newTravelPercentage := pg.travelPercentage - 10
+						if newTravelPercentage > 0 {
+							pg.travelPercentage = newTravelPercentage
+						}
+						mi5.Values = strconv.Itoa(pg.travelPercentage) + "%"
+						m.Repaint()
+						time.Sleep(pg.debounceTime)
+						changeTravelFlag = false
+					} ()
+				}
 			}
 		}
 	}()
@@ -323,6 +356,50 @@ func Initialize(lcd *goLCD20x4.LCD20x4, gm1 *sysfsGPIO.IOPin, gm2 *sysfsGPIO.IOP
 		}
 	}()
 
+	// ----------------
+	// EIGHTH MENU ITEM
+	// ----------------
+	mi8 := m.AddMenuItem("Trapezoidal Motion", "(% Time at CV)", strconv.Itoa(pg.constantSpeedPercentage) + "%", 
+		"   INC ", " DEC   ")
+	a8 := mi8.AddAction()
+	// Action handler
+	go func() {
+		cspFlag := false
+		for {
+			switch <-a8 {
+			case 1:
+				if !cspFlag {
+					cspFlag = true
+					go func() {
+						fmt.Println("Increase percentage time at constant speed")
+						newCSPercentage := pg.constantSpeedPercentage + 10
+						if newCSPercentage <= 100 {
+							pg.constantSpeedPercentage = newCSPercentage
+						}
+						mi8.Values = strconv.Itoa(pg.constantSpeedPercentage) + "%"
+						m.Repaint()
+						time.Sleep(pg.debounceTime)
+						cspFlag = false
+					} ()
+				}
+			case 2:
+				if !cspFlag {
+					cspFlag = true
+					go func() {
+						fmt.Println("Decrease percentage time at constant speed")
+						newCSPercentage := pg.constantSpeedPercentage - 10
+						if newCSPercentage > 0 {
+							pg.constantSpeedPercentage = newCSPercentage
+						}
+						mi8.Values = strconv.Itoa(pg.constantSpeedPercentage) + "%"
+						m.Repaint()
+						time.Sleep(pg.debounceTime)
+						cspFlag = false
+					} ()
+				}
+			}
+		}
+	}()
 	// Set up the membrane keypad GPIO here. Presume that the caller provides an input pin.
 	gm1.SetTriggerEdge("rising")
 	gm1.AddPinInterrupt()
