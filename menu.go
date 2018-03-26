@@ -5,9 +5,6 @@ import (
 	"time"
 )
 
-// Debounce interval in microseconds
-const debounceTime = 160000
-
 type Menu struct {
 	lcd             *goLCD20x4.LCD20x4
 	firstMenuItem   *MenuItem
@@ -24,23 +21,23 @@ func CreateMenu(lcd *goLCD20x4.LCD20x4) *Menu {
 func (m *Menu) Button1Pressed() {
 	m.currentMenuItem = m.currentMenuItem.prev
 	m.Repaint()
-	time.Sleep(time.Microsecond * debounceTime)
+	time.Sleep(time.Microsecond * defaultDebounceTime)
 }
 
 func (m *Menu) Button2Pressed() {
 	m.currentMenuItem.action <- 1
-	time.Sleep(time.Microsecond * debounceTime)
+	time.Sleep(time.Microsecond * defaultDebounceTime)
 }
 
 func (m *Menu) Button3Pressed() {
 	m.currentMenuItem.action <- 2
-	time.Sleep(time.Microsecond * debounceTime)
+	time.Sleep(time.Microsecond * defaultDebounceTime)
 }
 
 func (m *Menu) Button4Pressed() {
 	m.currentMenuItem = m.currentMenuItem.next
 	m.Repaint()
-	time.Sleep(time.Microsecond * debounceTime)
+	time.Sleep(time.Microsecond * defaultDebounceTime)
 }
 
 func (m *Menu) Repaint() {

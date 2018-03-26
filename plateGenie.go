@@ -25,6 +25,7 @@ package plateGenie
 
 import (
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/the-sibyl/goLCD20x4"
@@ -34,24 +35,19 @@ import (
 
 const (
 	// Stepper speed in microseconds
-	stepperSpeed = 2000
-	// Acceleration/deceleration window in microseconds for trapezoidal acceleration profile
-	trapAccelPeriod = 50000
-	// Minimum delay for the trapezoidal profile: this may be zero (fastest)
-	trapMinimumDelay = 50
-	// Maximum delay for the trapezoidal profile: this must not exceed the acceleration period
-	trapMaximumDelay = 1000
-	// The plater has a 500mm 4-start leadscrew with a 2mm pitch and 8mm lead.
-	screwLead   = 8.0
-	stepsPerRev = 200.0
-	// The maximum acceptable distance for a function to accept. This is a sanity check value.
-	maxDistance = 500.0
+	//stepperSpeed = 2000
 	// Maximum number of steps to be traversed for an axis move on a homing operation
-	maxHomingSteps = 100000
+	maxHomingSteps = 10000
 	// Number of steps to back-off in a homing operation
 	backoffSteps = 50
 	// Delay to slow down the stepper for homing movements in addition to the built-in delay from the stepper Initialize()
 	homingStepDelay = 1000
+	// Default speed percentage
+	defaultSpeedPercentage = 80
+	// Default percentage of time for the constant speed portion of a trapezoidal movement
+	defaultConstantSpeedPercentage = 70
+	// Default debounce time in microseconds for actions like keypresses
+	defaultDebounceTime = 160000
 )
 
 type PlateGenie struct {
@@ -84,6 +80,18 @@ type PlateGenie struct {
 
 	// Menu busy flag
 	menuBusyFlag bool
+
+	// Position starting with 0 on the motor side
+	position int
+
+	// Speed percentage of maximum for movements
+	speedPercentage int
+
+	// Percentage of time at constant speed during a trapezoidal movement
+	constantSpeedPercentage int
+
+	// Debounce time for key press input
+	debounceTime time.Duration
 }
 
 // List of items to pass:
@@ -102,6 +110,9 @@ func Initialize(lcd *goLCD20x4.LCD20x4, gm1 *sysfsGPIO.IOPin, gm2 *sysfsGPIO.IOP
 	pg.motionFlag = false
 	pg.homedFlag = false
 	pg.menuBusyFlag = false
+	pg.speedPercentage = defaultSpeedPercentage
+	pg.constantSpeedPercentage = defaultConstantSpeedPercentage
+	pg.debounceTime = defaultDebounceTime
 
 	// Set up the display
 	lcd.FunctionSet(1, 1, 0)
@@ -110,10 +121,12 @@ func Initialize(lcd *goLCD20x4.LCD20x4, gm1 *sysfsGPIO.IOPin, gm2 *sysfsGPIO.IOP
 
 	lcd.ClearDisplay()
 
-	lcd.WriteLine("Welcome to", 1)
-	lcd.WriteLine("PLATE GENIE", 2)
+	lcd.WriteLineCentered("Welcome to", 2)
+	lcd.WriteLineCentered("PLATE GENIE", 3)
 
 	pg.lcd = lcd
+
+	time.Sleep(time.Millisecond * 700)
 
 	m := CreateMenu(lcd)
 
@@ -124,14 +137,16 @@ func Initialize(lcd *goLCD20x4.LCD20x4, gm1 *sysfsGPIO.IOPin, gm2 *sysfsGPIO.IOP
 	a1 := mi1.AddAction()
 	// Action handler
 	go func() {
+		homeBothFlag := false
 		for {
-			switch <-a1 {
-			case 1:
-				fmt.Println("Home both")
-				pg.homeBoth()
-			case 2:
-				fmt.Println("Home both")
-				pg.homeBoth()
+			<-a1
+			if !homeBothFlag {
+				homeBothFlag = true
+				go func() {
+					fmt.Println("Home both")
+					pg.homeBoth()
+					homeBothFlag = false
+				} ()
 			}
 		}
 	}()
@@ -143,14 +158,27 @@ func Initialize(lcd *goLCD20x4.LCD20x4, gm1 *sysfsGPIO.IOPin, gm2 *sysfsGPIO.IOP
 	a2 := mi2.AddAction()
 	// Action handler
 	go func() {
+		homeSingleFlag := false
 		for {
 			switch <-a2 {
 			case 1:
-				fmt.Println("Home left")
-				pg.homeLeft()
+				if !homeSingleFlag {
+					homeSingleFlag = true
+					go func() {
+						fmt.Println("Home left")
+						pg.homeLeft()
+						homeSingleFlag = false
+					} ()
+				}
 			case 2:
-				fmt.Println("Home right")
-				pg.homeRight()
+				if !homeSingleFlag {
+					homeSingleFlag = true
+					go func() {
+						fmt.Println("Home right")
+						pg.homeRight()
+						homeSingleFlag = false
+					} ()
+				}
 			}
 		}
 	}()
@@ -162,14 +190,21 @@ func Initialize(lcd *goLCD20x4.LCD20x4, gm1 *sysfsGPIO.IOPin, gm2 *sysfsGPIO.IOP
 	a3 := mi3.AddAction()
 	// Action handler
 	go func() {
+		moveToCenterFlag := false
 		for {
-			switch <-a3 {
-			case 1:
-				fmt.Println("Move to center")
-				pg.moveTrapezoidal(2000, 100, 90)
-			case 2:
-				fmt.Println("Move to center")
-				pg.moveTrapezoidal(-2000, 100, 50)
+			<-a3
+			if !moveToCenterFlag {
+				moveToCenterFlag = true
+				centerPosition := pg.homingStepCount / 2
+				fmt.Println("Current position:", pg.position)
+				fmt.Println("Center position:", centerPosition)
+				distToMove := centerPosition - pg.position
+				fmt.Println("Distance to move:", distToMove)
+				go func() {
+					fmt.Println("Move to center")
+					pg.moveTrapezoidal(distToMove, pg.speedPercentage, pg.constantSpeedPercentage)
+					moveToCenterFlag = false
+				} ()
 			}
 		}
 	}()
@@ -177,16 +212,41 @@ func Initialize(lcd *goLCD20x4.LCD20x4, gm1 *sysfsGPIO.IOPin, gm2 *sysfsGPIO.IOP
 	// ----------------
 	// FOURTH MENU ITEM
 	// ----------------
-	mi4 := m.AddMenuItem("Speed", "(% Max Speed)", "100%", "   INC ", " DEC   ")
+	mi4 := m.AddMenuItem("Speed", "(% Max Speed)", strconv.Itoa(pg.speedPercentage) + "%", "   INC ", " DEC   ")
 	a4 := mi4.AddAction()
 	// Action handler
 	go func() {
+		changeSpeedFlag := false
 		for {
 			switch <-a4 {
 			case 1:
-				fmt.Println("Increase max speed")
+				if !changeSpeedFlag {
+					changeSpeedFlag = true
+					go func() {
+						fmt.Println("Increase max speed")
+						newSpeedPercentage := pg.speedPercentage + 10
+						if newSpeedPercentage <= 100 {
+							pg.speedPercentage = newSpeedPercentage
+						}
+						time.Sleep(pg.debounceTime)
+						lcd.WriteLineCentered(strconv.Itoa(pg.speedPercentage) + "%", 3)
+						changeSpeedFlag = false
+					} ()
+				}
 			case 2:
-				fmt.Println("Decrease max speed")
+				if !changeSpeedFlag {
+					changeSpeedFlag = true
+					go func() {
+						fmt.Println("Decrease max speed")
+						newSpeedPercentage := pg.speedPercentage - 10
+						if newSpeedPercentage > 0 {
+							pg.speedPercentage = newSpeedPercentage
+						}
+						time.Sleep(pg.debounceTime)
+						lcd.WriteLineCentered(strconv.Itoa(pg.speedPercentage) + "%", 3)
+						changeSpeedFlag = false
+					} ()
+				}
 			}
 		}
 	}()
@@ -223,6 +283,40 @@ func Initialize(lcd *goLCD20x4.LCD20x4, gm1 *sysfsGPIO.IOPin, gm2 *sysfsGPIO.IOP
 			case 2:
 				fmt.Println("Disable stepper hold")
 				pg.stepper.DisableHold()
+			}
+		}
+	}()
+
+	// -----------------
+	// SEVENTH MENU ITEM
+	// -----------------
+	mi7 := m.AddMenuItem("Move to Extents", "(Closest positions", "to switches.)", " Left  ", " Right ")
+	a7 := mi7.AddAction()
+	// Action handler
+	go func() {
+		homeExtentsFlag := false
+		for {
+			switch <-a7 {
+			case 1:
+				if !homeExtentsFlag {
+					homeExtentsFlag = true
+					go func() {
+						fmt.Println("Left extent")
+						distToMove := -pg.position
+						pg.moveTrapezoidal(distToMove, pg.speedPercentage, pg.constantSpeedPercentage)
+						homeExtentsFlag = false
+					} ()
+				}
+			case 2:
+				if !homeExtentsFlag {
+					homeExtentsFlag = true
+					go func() {
+						fmt.Println("Right extent")
+						distToMove := pg.homingStepCount - pg.position
+						pg.moveTrapezoidal(distToMove, pg.speedPercentage, pg.constantSpeedPercentage)
+						homeExtentsFlag = false
+					} ()
+				}
 			}
 		}
 	}()

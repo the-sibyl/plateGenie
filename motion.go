@@ -43,6 +43,7 @@ func (pg *PlateGenie) move(s *softStepper.Stepper, numStepsSigned int, speedPerc
 				return errors.New("Motion stopped due to emergency stop signal")
 			}
 			s.StepBackward()
+			pg.position--
 		}
 	} else if numStepsSigned > 0 {
 		for k := 0; k < numStepsSigned; k++ {
@@ -50,6 +51,7 @@ func (pg *PlateGenie) move(s *softStepper.Stepper, numStepsSigned int, speedPerc
 				return errors.New("Motion stopped due to emergency stop signal")
 			}
 			s.StepForward()
+			pg.position++
 		}
 	}
 
@@ -117,8 +119,10 @@ func (pg *PlateGenie) moveTrapezoidal(numStepsSigned int, speedPercentage int, c
 		}
 		if forwardDirection {
 			pg.stepper.StepForward()
+			pg.position++
 		} else {
 			pg.stepper.StepBackward()
+			pg.position--
 		}
 		time.Sleep(currentAccelSleepTime)
 		currentAccelSleepTime -= accelDelta
@@ -130,8 +134,10 @@ func (pg *PlateGenie) moveTrapezoidal(numStepsSigned int, speedPercentage int, c
 		}
 		if forwardDirection {
 			pg.stepper.StepForward()
+			pg.position++
 		} else {
 			pg.stepper.StepBackward()
+			pg.position--
 		}
 		time.Sleep(constantSpeedDelta)
 	}
@@ -147,8 +153,10 @@ func (pg *PlateGenie) moveTrapezoidal(numStepsSigned int, speedPercentage int, c
 		}
 		if forwardDirection {
 			pg.stepper.StepForward()
+			pg.position++
 		} else {
 			pg.stepper.StepBackward()
+			pg.position--
 		}
 		time.Sleep(currentDecelSleepTime)
 		currentDecelSleepTime += decelDelta
@@ -216,6 +224,7 @@ func (pg *PlateGenie) homeBoth() error {
 				return errors.New("Maximum number of steps exceeded on left movement")
 			}
 		}
+
 		for k := 0; k < homingStepCount/2; k++ {
 			if pg.eStopFlag {
 				return errors.New("Motion stopped because of E-Stop")
@@ -231,11 +240,15 @@ func (pg *PlateGenie) homeBoth() error {
 			}
 		}
 	} else {
-		return errors.New(`Homing malfunction. Try increasing the number of backoff steps or beginning the homing operation
-			 closer to the center.`)
+		return errors.New(`Homing malfunction. Try increasing the number of backoff steps or beginning the 
+			homing operation closer to the center.`)
 	}
 
-	pg.homingStepCount = homingStepCount
+	// Pad the left and right sides with a backoffSteps quantity of steps. Moving to position 0 will place the
+	// carriage near the left switch. Moving to position pg.homingStepCount will move the carriage near the right
+	// switch.
+	pg.homingStepCount = homingStepCount - 2 * backoffSteps
+	pg.position = pg.homingStepCount / 2
 	pg.homedFlag = true
 
 	return nil
