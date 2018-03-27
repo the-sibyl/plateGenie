@@ -1,0 +1,10 @@
+[Unit]
+Description=PlateGenie
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/chrt -rr 99 /usr/bin/plateGenie
+Restart=on-abort
+
+[Install]
+WantedBy=multi-user.target
