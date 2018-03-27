@@ -157,7 +157,7 @@ func Initialize(lcd *goLCD20x4.LCD20x4, gm1 *sysfsGPIO.IOPin, gm2 *sysfsGPIO.IOP
 					pg.limitWatchdogFlag = false
 					pg.homeBoth()
 					homeBothFlag = false
-				} ()
+				}()
 			}
 		}
 	}()
@@ -180,7 +180,7 @@ func Initialize(lcd *goLCD20x4.LCD20x4, gm1 *sysfsGPIO.IOPin, gm2 *sysfsGPIO.IOP
 						pg.limitWatchdogFlag = false
 						pg.homeLeft()
 						homeSingleFlag = false
-					} ()
+					}()
 				}
 			case 2:
 				if !homeSingleFlag {
@@ -190,7 +190,7 @@ func Initialize(lcd *goLCD20x4.LCD20x4, gm1 *sysfsGPIO.IOPin, gm2 *sysfsGPIO.IOP
 						pg.limitWatchdogFlag = false
 						pg.homeRight()
 						homeSingleFlag = false
-					} ()
+					}()
 				}
 			}
 		}
@@ -215,11 +215,20 @@ func Initialize(lcd *goLCD20x4.LCD20x4, gm1 *sysfsGPIO.IOPin, gm2 *sysfsGPIO.IOP
 				fmt.Println("Distance to move:", distToMove)
 				go func() {
 					fmt.Println("Move to center")
-					pg.limitWatchdogFlag = true
-					pg.moveTrapezoidal(distToMove, pg.speedPercentage, pg.constantSpeedPercentage)
-					pg.limitWatchdogFlag = false
+					fmt.Println("pg.homedFlag:", pg.homedFlag)
+					if pg.homedFlag {
+						pg.limitWatchdogFlag = true
+						pg.moveTrapezoidal(distToMove, pg.speedPercentage, pg.constantSpeedPercentage)
+						pg.limitWatchdogFlag = false
+					} else {
+						lcd.ClearDisplay()
+						lcd.WriteLineCentered("Please home", 2)
+						lcd.WriteLineCentered("the device.", 3)
+						time.Sleep(time.Second)
+						m.Repaint()
+					}
 					moveToCenterFlag = false
-				} ()
+				}()
 			}
 		}
 	}()
@@ -227,7 +236,7 @@ func Initialize(lcd *goLCD20x4.LCD20x4, gm1 *sysfsGPIO.IOPin, gm2 *sysfsGPIO.IOP
 	// ----------------
 	// FOURTH MENU ITEM
 	// ----------------
-	mi4 := m.AddMenuItem("Speed", "(% Max Speed)", strconv.Itoa(pg.speedPercentage) + "%", "   INC ", " DEC   ")
+	mi4 := m.AddMenuItem("Speed", "(% Max Speed)", strconv.Itoa(pg.speedPercentage)+"%", "   INC ", " DEC   ")
 	a4 := mi4.AddAction()
 	// Action handler
 	go func() {
@@ -247,7 +256,7 @@ func Initialize(lcd *goLCD20x4.LCD20x4, gm1 *sysfsGPIO.IOPin, gm2 *sysfsGPIO.IOP
 						m.Repaint()
 						time.Sleep(pg.debounceTime)
 						changeSpeedFlag = false
-					} ()
+					}()
 				}
 			case 2:
 				if !changeSpeedFlag {
@@ -262,7 +271,7 @@ func Initialize(lcd *goLCD20x4.LCD20x4, gm1 *sysfsGPIO.IOPin, gm2 *sysfsGPIO.IOP
 						m.Repaint()
 						time.Sleep(pg.debounceTime)
 						changeSpeedFlag = false
-					} ()
+					}()
 				}
 			}
 		}
@@ -271,7 +280,7 @@ func Initialize(lcd *goLCD20x4.LCD20x4, gm1 *sysfsGPIO.IOPin, gm2 *sysfsGPIO.IOP
 	// ---------------
 	// FIFTH MENU ITEM
 	// ---------------
-	mi5 := m.AddMenuItem("Travel", "(% Max Distance)", strconv.Itoa(pg.travelPercentage) + "%", "   INC ", " DEC   ")
+	mi5 := m.AddMenuItem("Travel", "(% Max Distance)", strconv.Itoa(pg.travelPercentage)+"%", "   INC ", " DEC   ")
 	a5 := mi5.AddAction()
 	// Action handler
 	go func() {
@@ -291,7 +300,7 @@ func Initialize(lcd *goLCD20x4.LCD20x4, gm1 *sysfsGPIO.IOPin, gm2 *sysfsGPIO.IOP
 						m.Repaint()
 						time.Sleep(pg.debounceTime)
 						changeTravelFlag = false
-					} ()
+					}()
 				}
 			case 2:
 				if !changeTravelFlag {
@@ -306,7 +315,7 @@ func Initialize(lcd *goLCD20x4.LCD20x4, gm1 *sysfsGPIO.IOPin, gm2 *sysfsGPIO.IOP
 						m.Repaint()
 						time.Sleep(pg.debounceTime)
 						changeTravelFlag = false
-					} ()
+					}()
 				}
 			}
 		}
@@ -351,7 +360,7 @@ func Initialize(lcd *goLCD20x4.LCD20x4, gm1 *sysfsGPIO.IOPin, gm2 *sysfsGPIO.IOP
 						pg.moveTrapezoidal(distToMove, pg.speedPercentage, pg.constantSpeedPercentage)
 						pg.limitWatchdogFlag = false
 						homeExtentsFlag = false
-					} ()
+					}()
 				}
 			case 2:
 				if !homeExtentsFlag {
@@ -363,7 +372,7 @@ func Initialize(lcd *goLCD20x4.LCD20x4, gm1 *sysfsGPIO.IOPin, gm2 *sysfsGPIO.IOP
 						pg.moveTrapezoidal(distToMove, pg.speedPercentage, pg.constantSpeedPercentage)
 						pg.limitWatchdogFlag = false
 						homeExtentsFlag = false
-					} ()
+					}()
 				}
 			}
 		}
@@ -372,7 +381,7 @@ func Initialize(lcd *goLCD20x4.LCD20x4, gm1 *sysfsGPIO.IOPin, gm2 *sysfsGPIO.IOP
 	// ----------------
 	// EIGHTH MENU ITEM
 	// ----------------
-	mi8 := m.AddMenuItem("Trapezoidal Motion", "(% Time at CV)", strconv.Itoa(pg.constantSpeedPercentage) + "%", 
+	mi8 := m.AddMenuItem("Trapezoidal Motion", "(% Time at CV)", strconv.Itoa(pg.constantSpeedPercentage)+"%",
 		"   INC ", " DEC   ")
 	a8 := mi8.AddAction()
 	// Action handler
@@ -393,7 +402,7 @@ func Initialize(lcd *goLCD20x4.LCD20x4, gm1 *sysfsGPIO.IOPin, gm2 *sysfsGPIO.IOP
 						m.Repaint()
 						time.Sleep(pg.debounceTime)
 						cspFlag = false
-					} ()
+					}()
 				}
 			case 2:
 				if !cspFlag {
@@ -408,7 +417,7 @@ func Initialize(lcd *goLCD20x4.LCD20x4, gm1 *sysfsGPIO.IOPin, gm2 *sysfsGPIO.IOP
 						m.Repaint()
 						time.Sleep(pg.debounceTime)
 						cspFlag = false
-					} ()
+					}()
 				}
 			}
 		}
@@ -427,18 +436,59 @@ func Initialize(lcd *goLCD20x4.LCD20x4, gm1 *sysfsGPIO.IOPin, gm2 *sysfsGPIO.IOP
 			case 1:
 				if !acFlag {
 					acFlag = true
+					if !pg.homedFlag {
+						lcd.ClearDisplay()
+						lcd.WriteLineCentered("Please home", 2)
+						lcd.WriteLineCentered("the device.", 3)
+						// Add debouncing functionality
+						select {
+						case <-a9:
+							time.Sleep(time.Second)
+						case <-time.After(time.Second):
+							break
+						}
+						m.Repaint()
+						acFlag = false
+						continue
+					}
 					go func() {
 						fmt.Println("Begin agitation")
+						pg.limitWatchdogFlag = true
+						moveDistance := pg.travelPercentage * pg.homingStepCount / 100
+						startMoveSteps := ((pg.homingStepCount - moveDistance) / 2) - pg.position
+						pg.moveTrapezoidal(startMoveSteps, pg.speedPercentage,
+							pg.constantSpeedPercentage)
+						for {
+							newMoveDistance := pg.travelPercentage * pg.homingStepCount / 100
+							if moveDistance != newMoveDistance {
+								moveDistance = newMoveDistance
+								startMoveSteps := ((pg.homingStepCount - moveDistance) / 2) - pg.position
+								pg.moveTrapezoidal(startMoveSteps, pg.speedPercentage,
+									pg.constantSpeedPercentage)
+							}
+							pg.moveTrapezoidal(moveDistance, pg.speedPercentage,
+								pg.constantSpeedPercentage)
+							if acFlag == false || pg.eStopFlag {
+								break
+							}
+							pg.moveTrapezoidal(-moveDistance, pg.speedPercentage,
+								pg.constantSpeedPercentage)
+							if acFlag == false || pg.eStopFlag {
+								break
+							}
+						}
+						pg.limitWatchdogFlag = false
 						acFlag = false
-					} ()
+					}()
 				}
 			case 2:
+				acFlag = false
 				if !acFlag {
 					acFlag = true
 					go func() {
 						fmt.Println("End agitation")
 						acFlag = false
-					} ()
+					}()
 				}
 			}
 		}
